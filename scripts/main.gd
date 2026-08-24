@@ -27,9 +27,9 @@ var routes=[
 ]
 
 var cars=[
-	{"name":"Transporter","max_speed":42.0,"color":Color(0.08,0.22,0.55)},
-	{"name":"Limousine","max_speed":48.0,"color":Color(0.08,0.08,0.10)},
-	{"name":"Sportwagen","max_speed":55.0,"color":Color(0.75,0.08,0.08)}
+	{"name":"Transporter","max_speed":42.0,"accel":14.0,"brake":30.0,"fuel_factor":0.80,"color":Color(0.08,0.22,0.55)},
+	{"name":"Limousine","max_speed":48.0,"accel":18.0,"brake":34.0,"fuel_factor":1.00,"color":Color(0.08,0.08,0.10)},
+	{"name":"Sportwagen","max_speed":55.0,"accel":24.0,"brake":39.0,"fuel_factor":1.25,"color":Color(0.75,0.08,0.08)}
 ]
 
 var ui_layer
@@ -67,6 +67,15 @@ var weather_label
 var headlights=[]
 var career_level=1
 var jobs_completed=0
+# AUTO BOSS 4.0 systems
+var fines_total=0
+var speed_limit=130
+var camera_cooldown=0.0
+var event_timer=0.0
+var event_text="Freie Fahrt"
+var event_label
+var fine_label
+var headlights_on=true
 
 
 func _ready():
@@ -91,6 +100,7 @@ func _physics_process(delta):
 		return
 
 	update_world_30(delta)
+	update_road_events_40(delta)
 	update_player(delta)
 	wrap_road()
 	update_camera()
@@ -141,7 +151,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 3.0"
+	title.text="AUTO BOSS 4.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -203,7 +213,7 @@ func show_garage():
 		var c=cars[i]
 		var b=Button.new()
 		var prefix="✓ " if i==selected_car else ""
-		b.text=prefix+c["name"]+"   •   Vmax "+str(int(c["max_speed"]*3.6))+" km/h"
+		b.text=prefix+c["name"]+"   •   Vmax "+str(int(c["max_speed"]*3.6))+" km/h   •   Verbrauch "+str(c["fuel_factor"])+"x"
 		b.position=Vector2(385,150+i*90)
 		b.size=Vector2(510,65)
 		b.add_theme_font_size_override("font_size",20)
@@ -232,6 +242,11 @@ func start_mission():
 	day_clock=0.20
 	weather_timer=0.0
 	weather_state="Regen" if randi()%4==0 else "Klar"
+	fines_total=0
+	speed_limit=130
+	camera_cooldown=0.0
+	event_timer=0.0
+	event_text="Freie Fahrt"
 
 	if settlement_panel!=null:
 		settlement_panel.visible=false
@@ -256,14 +271,17 @@ func update_player(delta):
 	if right: steer+=1.0
 
 	var max_speed=float(cars[selected_car]["max_speed"])
+	var accel=float(cars[selected_car]["accel"])
+	var brake_power=float(cars[selected_car]["brake"])
+	var fuel_factor=float(cars[selected_car]["fuel_factor"])
 
 	if gas and fuel>0:
-		speed=min(speed+18.0*delta,max_speed)
+		speed=min(speed+accel*delta,max_speed)
 	else:
 		speed=max(speed-5.0*delta,0.0)
 
 	if brake:
-		speed=max(speed-34.0*delta,0.0)
+		speed=max(speed-brake_power*delta,0.0)
 
 	car.velocity=Vector3(steer*5.5,0,-speed)
 	car.move_and_slide()
@@ -271,7 +289,7 @@ func update_player(delta):
 	car.position.y=0.0
 
 	if speed>0:
-		fuel=max(0.0,fuel-speed*0.00035*delta)
+		fuel=max(0.0,fuel-speed*0.00035*fuel_factor*delta)
 
 
 
@@ -325,7 +343,7 @@ func finish_mission():
 
 	var service_costs=max(
 		0,
-		mission_start_money-money
+		mission_start_money-money-fines_total
 	)
 
 	money+=reward
@@ -374,6 +392,7 @@ func show_settlement(
 		+"Tankbonus:            +"+str(fuel_bonus)+" €\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
+		+"Bußgelder:             -"+str(fines_total)+" €\n"
 		+"────────────────────────\n"
 		+"Auszahlung:            "+str(reward)+" €\n"
 		+"Tatsächlicher Gewinn:  "+str(real_profit)+" €\n"
@@ -584,6 +603,44 @@ func update_world_30(delta):
 					drop.position.y=randf_range(4.0,10.0)
 					drop.position.x=randf_range(-12.0,12.0)
 					drop.position.z=randf_range(-15.0,8.0)
+
+
+func update_road_events_40(delta):
+	camera_cooldown=max(0.0,camera_cooldown-delta)
+	event_timer+=delta
+
+	# Dynamische Tempolimits und Verkehrslagen sorgen für wechselnde Fahrten.
+	if event_timer>18.0:
+		event_timer=0.0
+		var roll=randi()%5
+		if roll==0:
+			speed_limit=80
+			event_text="BAUSTELLE • 80 km/h"
+		elif roll==1:
+			speed_limit=100
+			event_text="DICHTER VERKEHR • 100 km/h"
+		elif roll==2:
+			speed_limit=120
+			event_text="TEMPOLIMIT • 120 km/h"
+		else:
+			speed_limit=130
+			event_text="FREIE FAHRT • 130 km/h"
+
+	# Mobile Blitzer-Prüfung. Bei deutlicher Überschreitung wird direkt abgebucht.
+	var kmh=int(speed*3.6)
+	if camera_cooldown<=0.0 and kmh>speed_limit+15 and randi()%1000<5:
+		var over=kmh-speed_limit
+		var fine=30+over*2
+		fine=min(fine,240)
+		money=max(0,money-fine)
+		fines_total+=fine
+		camera_cooldown=12.0
+		event_text="⚡ GEBLITZT!  "+str(kmh)+" km/h • -"+str(fine)+" €"
+
+	if event_label!=null:
+		event_label.text=event_text
+	if fine_label!=null:
+		fine_label.text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
 
 
 func create_rain_system():
@@ -1130,6 +1187,19 @@ func create_ui():
 	weather_label.add_theme_font_size_override("font_size",17)
 	game_root.add_child(weather_label)
 
+	event_label=Label.new()
+	event_label.position=Vector2(800,92)
+	event_label.size=Vector2(430,28)
+	event_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+	event_label.add_theme_font_size_override("font_size",15)
+	game_root.add_child(event_label)
+
+	fine_label=Label.new()
+	fine_label.position=Vector2(25,92)
+	fine_label.size=Vector2(300,25)
+	fine_label.add_theme_font_size_override("font_size",14)
+	game_root.add_child(fine_label)
+
 	route_progress=ProgressBar.new()
 	route_progress.position=Vector2(350,88)
 	route_progress.size=Vector2(430,12)
@@ -1278,7 +1348,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 3.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 4.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
