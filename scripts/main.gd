@@ -57,6 +57,16 @@ var settlement_details
 var settlement_next_button
 var settlement_home_button
 var route_progress
+var world_env
+var sun_light
+var day_clock=0.22
+var weather_state="Klar"
+var weather_timer=0.0
+var rain_root
+var weather_label
+var headlights=[]
+var career_level=1
+var jobs_completed=0
 
 
 func _ready():
@@ -71,6 +81,7 @@ func _ready():
 	create_service_station_at(Vector3(13.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(13.0,0,-1720.0),"SERVICE NORD",1.84)
 	create_player()
+	create_rain_system()
 	create_ui()
 	show_main_menu()
 
@@ -79,6 +90,7 @@ func _physics_process(delta):
 	if game_state!="driving":
 		return
 
+	update_world_30(delta)
 	update_player(delta)
 	wrap_road()
 	update_camera()
@@ -93,6 +105,7 @@ func save_game():
 	cfg.set_value("player","money",money)
 	cfg.set_value("player","reputation",reputation)
 	cfg.set_value("player","selected_car",selected_car)
+	cfg.set_value("player","jobs_completed",jobs_completed)
 	cfg.save("user://autoboss.cfg")
 
 
@@ -102,6 +115,8 @@ func load_save():
 		money=int(cfg.get_value("player","money",5000))
 		reputation=int(cfg.get_value("player","reputation",15))
 		selected_car=int(cfg.get_value("player","selected_car",0))
+	jobs_completed=int(cfg.get_value("player","jobs_completed",0))
+	career_level=1+int(jobs_completed/3)
 
 
 func clear_menu():
@@ -126,7 +141,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 1.5"
+	title.text="AUTO BOSS 3.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -142,7 +157,7 @@ func show_main_menu():
 	menu_button("SPIELSTAND SPEICHERN",Vector2(420,380),func(): save_game())
 
 	var stats=Label.new()
-	stats.text="Geld: "+str(money)+" €     Reputation: "+str(reputation)
+	stats.text="Geld: "+str(money)+" €     Reputation: "+str(reputation)+"     Karriere-Level: "+str(career_level)
 	stats.position=Vector2(430,490)
 	stats.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(stats)
@@ -214,6 +229,9 @@ func start_mission():
 	damage=0.0
 	distance_left=routes[selected_route]["distance"]
 	mission_start_money=money
+	day_clock=0.20
+	weather_timer=0.0
+	weather_state="Regen" if randi()%4==0 else "Klar"
 
 	if settlement_panel!=null:
 		settlement_panel.visible=false
@@ -311,6 +329,8 @@ func finish_mission():
 	)
 
 	money+=reward
+	jobs_completed+=1
+	career_level=1+int(jobs_completed/3)
 
 	if damage<25:
 		reputation+=3
@@ -381,6 +401,8 @@ func spawn_traffic(z_pos):
 
 	t.position=Vector3(lanes[randi()%3],0,z_pos)
 	t.set_meta("traffic_speed",randf_range(17.0,34.0))
+	t.set_meta("lane_timer",randf_range(3.0,8.0))
+	t.set_meta("target_x",t.position.x)
 
 	add_child(t)
 
@@ -405,19 +427,56 @@ func spawn_traffic(z_pos):
 func update_traffic(delta):
 	traffic_timer+=delta
 
-	if traffic_timer>2.7:
+	if traffic_timer>2.25:
 		traffic_timer=0
-		if traffic.size()<14:
-			spawn_traffic(car.position.z-190)
+		if traffic.size()<18:
+			spawn_traffic(car.position.z-randf_range(170.0,240.0))
+
+	var lanes=[-5.5,0.0,5.5]
 
 	for t in traffic.duplicate():
 		if not is_instance_valid(t):
 			traffic.erase(t)
 			continue
 
+		var ai_speed=float(t.get_meta("traffic_speed",22.0))
+		var lane_timer=float(t.get_meta("lane_timer",5.0))-delta
+		var target_x=float(t.get_meta("target_x",t.position.x))
+
+		# Abstand halten: erkennt ein Fahrzeug direkt voraus.
+		for other in traffic:
+			if other==t or not is_instance_valid(other):
+				continue
+			if abs(other.position.x-t.position.x)<1.8:
+				var gap=t.position.z-other.position.z
+				if gap>0.0 and gap<15.0:
+					ai_speed=max(12.0,ai_speed-8.0)
+					lane_timer=0.0
+					break
+
+		# Gelegentlicher Spurwechsel / Überholen.
+		if lane_timer<=0.0:
+			lane_timer=randf_range(4.0,9.0)
+			if randi()%100<48:
+				var lane_index=0
+				var best_dist=999.0
+				for i in range(lanes.size()):
+					var d=abs(t.position.x-lanes[i])
+					if d<best_dist:
+						best_dist=d
+						lane_index=i
+				var direction=-1 if randi()%2==0 else 1
+				var next_index=clamp(lane_index+direction,0,lanes.size()-1)
+				target_x=lanes[next_index]
+
+		t.set_meta("lane_timer",lane_timer)
+		t.set_meta("target_x",target_x)
+		t.set_meta("traffic_speed",lerp(float(t.get_meta("traffic_speed",22.0)),ai_speed,delta*1.5))
+
+		t.position.x=move_toward(t.position.x,target_x,2.0*delta)
 		t.position.z-=float(t.get_meta("traffic_speed",22.0))*delta
 
-		if t.position.z>car.position.z+100:
+		if t.position.z>car.position.z+110:
 			traffic.erase(t)
 			t.queue_free()
 			continue
@@ -483,6 +542,80 @@ func check_collision(t):
 			t.position.x+=2.5
 
 
+func update_world_30(delta):
+	# Ein kompletter Tag/Nacht-Zyklus dauert ca. 150 Sekunden Spielzeit.
+	day_clock=fmod(day_clock+delta/150.0,1.0)
+	weather_timer+=delta
+
+	if weather_timer>42.0:
+		weather_timer=0.0
+		weather_state="Regen" if weather_state=="Klar" else "Klar"
+
+	var sun_factor=clamp(sin(day_clock*PI),0.08,1.0)
+	var is_night=day_clock>0.78 or day_clock<0.10
+
+	if world_env!=null:
+		if is_night:
+			world_env.background_color=Color(0.025,0.045,0.10)
+			world_env.ambient_light_color=Color(0.24,0.32,0.52)
+			world_env.ambient_light_energy=0.42
+		else:
+			var rain_dim=0.68 if weather_state=="Regen" else 1.0
+			world_env.background_color=Color(0.42*rain_dim,0.72*rain_dim,0.95*rain_dim)
+			world_env.ambient_light_color=Color.WHITE
+			world_env.ambient_light_energy=0.82 if weather_state=="Regen" else 1.05
+
+	if sun_light!=null:
+		sun_light.rotation_degrees.x=-15.0-day_clock*165.0
+		sun_light.light_energy=0.18 if is_night else 1.35*sun_factor
+
+	for lamp in headlights:
+		if is_instance_valid(lamp):
+			lamp.visible=is_night or weather_state=="Regen"
+
+	if rain_root!=null:
+		rain_root.visible=weather_state=="Regen"
+		rain_root.global_position=car.global_position+Vector3(0,7,-8)
+		if weather_state=="Regen":
+			for drop in rain_root.get_children():
+				drop.position.y-=18.0*delta
+				drop.position.z+=4.0*delta
+				if drop.position.y < -2.0:
+					drop.position.y=randf_range(4.0,10.0)
+					drop.position.x=randf_range(-12.0,12.0)
+					drop.position.z=randf_range(-15.0,8.0)
+
+
+func create_rain_system():
+	rain_root=Node3D.new()
+	add_child(rain_root)
+	for i in range(42):
+		var drop=MeshInstance3D.new()
+		var mesh=BoxMesh.new()
+		mesh.size=Vector3(0.025,0.7,0.025)
+		drop.mesh=mesh
+		drop.position=Vector3(randf_range(-12,12),randf_range(-2,10),randf_range(-15,8))
+		drop.rotation_degrees.x=-12
+		drop.material_override=material(Color(0.72,0.84,1.0))
+		rain_root.add_child(drop)
+	rain_root.visible=false
+
+
+func add_player_headlights():
+	headlights.clear()
+	for x in [-0.62,0.62]:
+		var light=SpotLight3D.new()
+		light.position=Vector3(x,0.9,-2.0)
+		light.rotation_degrees.x=-90
+		light.spot_range=28.0
+		light.spot_angle=38.0
+		light.light_energy=3.2
+		light.light_color=Color(1.0,0.93,0.72)
+		light.shadow_enabled=false
+		car.add_child(light)
+		headlights.append(light)
+
+
 func create_environment():
 	var world=WorldEnvironment.new()
 	var env=Environment.new()
@@ -493,6 +626,7 @@ func create_environment():
 	env.ambient_light_energy=1.05
 	env.tonemap_mode=Environment.TONE_MAPPER_FILMIC
 	world.environment=env
+	world_env=env
 	add_child(world)
 
 	var sun=DirectionalLight3D.new()
@@ -500,6 +634,7 @@ func create_environment():
 	sun.light_energy=1.35
 	sun.light_color=Color(1.0,0.94,0.84)
 	sun.shadow_enabled=true
+	sun_light=sun
 	add_child(sun)
 
 
@@ -521,6 +656,10 @@ func create_road():
 
 	box(Vector3(0.18,0.35,3000),Vector3(-9.2,0.65,-1500),Color(0.75,0.77,0.80))
 	box(Vector3(0.18,0.35,3000),Vector3(9.2,0.65,-1500),Color(0.75,0.77,0.80))
+
+	for z in range(-25,-3000,-50):
+		box(Vector3(0.10,0.08,0.30),Vector3(-8.0,0.22,z),Color(0.95,0.95,0.80))
+		box(Vector3(0.10,0.08,0.30),Vector3(8.0,0.22,z-25),Color(0.95,0.95,0.80))
 
 
 func create_scenery():
@@ -583,6 +722,7 @@ func create_road_features():
 	# Zwei erkennbare Autobahn-Ausfahrten
 	create_exit_area(-1380.0, "Ausfahrt 12  Heilbronn")
 	create_exit_area(-2580.0, "Ausfahrt 29  Frankfurt")
+	create_exit_area(-1880.0, "Raststätte  1000 m")
 
 	# Kleine Gebäudegruppen und Böschungen am Straßenrand
 	for z in [-420.0,-980.0,-1660.0,-2380.0]:
@@ -871,6 +1011,7 @@ func create_player():
 	car.add_child(collision)
 
 	create_vehicle_model(car,cars[selected_car]["color"])
+	add_player_headlights()
 
 	cam=Camera3D.new()
 	cam.current=true
@@ -879,10 +1020,11 @@ func create_player():
 
 func rebuild_player():
 	for child in car.get_children():
-		if child is MeshInstance3D:
+		if child is MeshInstance3D or child is SpotLight3D:
 			child.queue_free()
 
 	create_vehicle_model(car,cars[selected_car]["color"])
+	add_player_headlights()
 
 
 func create_vehicle_model(parent,color_value):
@@ -980,6 +1122,13 @@ func create_ui():
 	money_label.position=Vector2(1100,20)
 	money_label.add_theme_font_size_override("font_size",24)
 	game_root.add_child(money_label)
+
+	weather_label=Label.new()
+	weather_label.position=Vector2(1040,65)
+	weather_label.size=Vector2(210,35)
+	weather_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+	weather_label.add_theme_font_size_override("font_size",17)
+	game_root.add_child(weather_label)
 
 	route_progress=ProgressBar.new()
 	route_progress.position=Vector2(350,88)
@@ -1129,10 +1278,13 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 1.5\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 3.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
+	if weather_label!=null:
+		var phase="NACHT" if day_clock>0.78 or day_clock<0.10 else "TAG"
+		weather_label.text=phase+"  •  "+weather_state
 	if route_progress!=null:
 		var total=float(routes[selected_route]["distance"])
 		route_progress.value=clamp((1.0-distance_left/total)*100.0,0.0,100.0)
