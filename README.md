@@ -1,16 +1,16 @@
-# AUTO BOSS 1.5
+# AUTO BOSS 3.0
 
-Großer Grafik-/Autobahn-Pass auf Basis der stabilen 1.2-Version.
+Großer experimenteller Entwicklungssprung auf Basis der stabilen 1.5-Version.
 
-## Neu in 1.5
-- dunklerer, kontrastreicher Asphalt und Seitenstreifen
-- größere, besser lesbare Autobahnschilder mit Richtungspfeilen
-- zusätzliche Hügel und Vegetationskulisse
-- Straßenlampen entlang der Autobahn
-- stärker geformte Fahrzeugkarosserien
-- überarbeitetes Licht / Filmic Tonemapping
-- breitere Routen-Fortschrittsanzeige
-- bestehende Missionen, Tankstellen, Schaden, Verkehr, Garage und Abrechnung bleiben erhalten
+## Neu in 3.0
+- dynamischer Tag-/Nacht-Zyklus
+- Regenmodus mit sichtbaren Regentropfen
+- automatische Scheinwerfer bei Nacht/Regen
+- dichterer Verkehr
+- KI-Spurwechsel und einfaches Abstandhalten
+- Karriere-Level und abgeschlossene Aufträge
+- erweitertes HUD mit Wetter/Tageszeit
+- zusätzliche Raststätten-Ausfahrt und Straßenreflektoren
+- bestehende Systeme für Aufträge, Tank, Werkstatt, Schaden, Garage, Pause und Abrechnung bleiben erhalten
 
-## Wichtig
-Die vorherige Version bleibt als Rückfallbasis erhalten. Diese Version zuerst auf Android testen, bevor weitere externe 3D-Assets eingebaut werden.
+Die Version 1.5 sollte als Sicherheitskopie aufbewahrt werden.
