@@ -1,39 +1,94 @@
-name: Build AUTO BOSS Android APK
+name: AUTO BOSS Android
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout project
+      - name: Projekt laden
         uses: actions/checkout@v4
 
-      - name: Setup Godot
+      - name: Java installieren
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK installieren
+        uses: android-actions/setup-android@v3
+
+      - name: Debug Keystore erstellen
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair \
+            -keystore ~/.android/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000
+
+      - name: Godot installieren
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.2
           use-dotnet: false
           include-templates: true
 
-      - name: Verify Godot project
+      - name: Projekt prüfen
         run: |
           godot --version
-          test -f project.godot
-          test -f export_presets.cfg
 
-      - name: Export Android debug APK
+          echo "=== Dateien im Projekt ==="
+          ls -la
+          echo "=== scripts ==="
+          ls -la scripts || true
+
+          if [ -f project.godot ]; then
+            echo "✅ project.godot vorhanden"
+          else
+            echo "❌ project.godot FEHLT"
+            exit 1
+          fi
+
+          if [ -f main.tscn ]; then
+            echo "✅ main.tscn vorhanden"
+          else
+            echo "❌ main.tscn FEHLT"
+            exit 1
+          fi
+
+          if [ -f scripts/main.gd ]; then
+            echo "✅ scripts/main.gd vorhanden"
+          else
+            echo "❌ scripts/main.gd FEHLT"
+            exit 1
+          fi
+
+          if [ -f export_presets.cfg ]; then
+            echo "✅ export_presets.cfg vorhanden"
+          else
+            echo "❌ export_presets.cfg FEHLT"
+            exit 1
+          fi
+
+      - name: AUTO BOSS APK bauen
         run: |
           mkdir -p build
           godot --headless --path . --export-debug "Android" build/AUTO_BOSS.apk
 
-      - name: Upload APK
+      - name: APK speichern
         uses: actions/upload-artifact@v4
         with:
-          name: AUTO_BOSS-Android-APK
+          name: AUTO-BOSS-0.4-APK
           path: build/AUTO_BOSS.apk
           if-no-files-found: error
