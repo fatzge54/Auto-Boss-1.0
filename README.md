@@ -1,4 +1,4 @@
-# AUTO BOSS 0.3 — Godot 4.7.2 Prototype
+# AUTO BOSS 1.2 — Godot 4.7.2 Prototype
 
 ## Was enthalten ist
 - echte 3D-Szene in Godot 4
@@ -32,3 +32,11 @@ Android:
 ## Wichtig
 Alle Bauwerke sind derzeit stilisierte, selbst erzeugte Formen und keine exakten 3D-Kopien realer Gebäude.
 Die Strecke ist spielerisch komprimiert und keine Navigationssimulation.
+
+
+## Neu in 1.2
+- kleinere, höher gesetzte Autobahnschilder
+- zwei Überführungsbrücken
+- sichtbare Autobahnausfahrten mit Beschilderung
+- Gebäudegruppen an der Strecke
+- zusätzliche Fahrzeugdetails (Seitenscheiben und Spiegel)
