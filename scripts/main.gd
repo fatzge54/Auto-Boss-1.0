@@ -126,7 +126,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 1.2"
+	title.text="AUTO BOSS 1.5"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -490,13 +490,15 @@ func create_environment():
 	env.background_color=Color(0.42,0.72,0.95)
 	env.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color=Color.WHITE
-	env.ambient_light_energy=1.25
+	env.ambient_light_energy=1.05
+	env.tonemap_mode=Environment.TONE_MAPPER_FILMIC
 	world.environment=env
 	add_child(world)
 
 	var sun=DirectionalLight3D.new()
 	sun.rotation_degrees=Vector3(-48,-25,0)
-	sun.light_energy=1.5
+	sun.light_energy=1.35
+	sun.light_color=Color(1.0,0.94,0.84)
 	sun.shadow_enabled=true
 	add_child(sun)
 
@@ -506,7 +508,9 @@ func create_ground():
 
 
 func create_road():
-	box(Vector3(18,0.2,3000),Vector3(0,0,-1500),Color(0.16,0.16,0.18))
+	box(Vector3(18,0.2,3000),Vector3(0,0,-1500),Color(0.105,0.11,0.125))
+	box(Vector3(2.2,0.10,3000),Vector3(-10.0,-0.02,-1500),Color(0.38,0.39,0.40))
+	box(Vector3(2.2,0.10,3000),Vector3(10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 
 	for x in [-3.0,3.0]:
 		for z in range(0,3000,25):
@@ -541,6 +545,33 @@ func create_scenery():
 		box(Vector3(0.12,1.4,0.12),Vector3(-9.7,0.7,z),Color(0.75,0.77,0.80))
 		box(Vector3(0.12,1.4,0.12),Vector3(9.7,0.7,z-80),Color(0.75,0.77,0.80))
 
+
+	# 1.5: zusätzliche Vegetation, Hügel und Straßenbeleuchtung
+	for z in range(-180,-2900,-260):
+		create_hill(Vector3(-34-randf_range(0,10),0,z), randf_range(8.0,15.0))
+		create_hill(Vector3(34+randf_range(0,10),0,z-120), randf_range(8.0,15.0))
+	for z in range(-220,-2900,-240):
+		create_lamp(Vector3(-10.8,0,z))
+		create_lamp(Vector3(10.8,0,z-120))
+
+func create_hill(pos:Vector3, scale_value:float):
+	var hill=MeshInstance3D.new()
+	var mesh=SphereMesh.new()
+	mesh.radius=1.0
+	mesh.height=2.0
+	hill.mesh=mesh
+	hill.position=pos+Vector3(0,-2.0,0)
+	hill.scale=Vector3(scale_value,scale_value*0.42,scale_value*1.25)
+	hill.material_override=material(Color(0.12,0.42+randf_range(0,0.08),0.16))
+	add_child(hill)
+
+func create_lamp(pos:Vector3):
+	var root=Node3D.new()
+	root.position=pos
+	add_child(root)
+	station_box(root,Vector3(0.12,5.8,0.12),Vector3(0,2.9,0),Color(0.38,0.40,0.43))
+	station_box(root,Vector3(1.0,0.10,0.10),Vector3(-0.42,5.72,0),Color(0.38,0.40,0.43))
+	station_box(root,Vector3(0.42,0.12,0.28),Vector3(-0.88,5.65,0),Color(1.0,0.86,0.52))
 
 
 
@@ -629,12 +660,12 @@ func create_motorway_sign(pos:Vector3,text_value:String):
 	station_box(root,Vector3(0.16,5.6,0.16),Vector3(-7.4,2.8,0),Color(0.72,0.74,0.76))
 	station_box(root,Vector3(0.16,5.6,0.16),Vector3(7.4,2.8,0),Color(0.72,0.74,0.76))
 	station_box(root,Vector3(15.0,0.16,0.16),Vector3(0,5.55,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(3.9,0.68,0.12),Vector3(0,5.25,-0.12),Color(0.02,0.28,0.55))
+	station_box(root,Vector3(8.2,1.25,0.12),Vector3(0,5.15,-0.12),Color(0.02,0.28,0.55))
 	var label=Label3D.new()
-	label.text=text_value
-	label.font_size=18
-	label.outline_size=3
-	label.position=Vector3(0,5.25,-0.20)
+	label.text=text_value+"\n↓          ↓"
+	label.font_size=26
+	label.outline_size=5
+	label.position=Vector3(0,5.15,-0.20)
 	label.rotation_degrees.y=180
 	root.add_child(label)
 
@@ -884,6 +915,10 @@ func create_vehicle_model(parent,color_value):
 			wheel.material_override=material(Color(0.025,0.025,0.025))
 			parent.add_child(wheel)
 
+	# 1.5: stärker geformte Karosserie statt reiner Kastenform
+	station_box(parent,Vector3(1.88,0.28,1.25),Vector3(0,1.02,-1.55),color_value.lightened(0.06))
+	station_box(parent,Vector3(1.88,0.22,0.85),Vector3(0,0.98,1.72),color_value.darkened(0.04))
+	station_box(parent,Vector3(1.92,0.12,0.16),Vector3(0,0.50,2.12),Color(0.07,0.07,0.08))
 	# Stoßfänger, Scheiben und Frontscheinwerfer für ein klareres Fahrzeugmodell
 	station_box(parent,Vector3(1.85,0.16,0.16),Vector3(0,0.52,-2.12),Color(0.06,0.06,0.07))
 	station_box(parent,Vector3(1.45,0.42,0.08),Vector3(0,1.48,-0.88),Color(0.10,0.24,0.34))
@@ -948,7 +983,7 @@ func create_ui():
 
 	route_progress=ProgressBar.new()
 	route_progress.position=Vector2(350,88)
-	route_progress.size=Vector2(330,10)
+	route_progress.size=Vector2(430,12)
 	route_progress.show_percentage=false
 	game_root.add_child(route_progress)
 
@@ -1094,7 +1129,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 1.2\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 1.5\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
