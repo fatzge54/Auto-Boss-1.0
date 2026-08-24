@@ -66,6 +66,7 @@ func _ready():
 	create_ground()
 	create_road()
 	create_scenery()
+	create_road_features()
 	create_service_station_at(Vector3(13.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(13.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(13.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -125,7 +126,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 1.0"
+	title.text="AUTO BOSS 1.2"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -523,9 +524,19 @@ func create_scenery():
 		tree(Vector3(-15-randf_range(0,8),0,z))
 		tree(Vector3(15+randf_range(0,8),0,z-35))
 
-	# Autobahn-Schilder und zusätzliche Straßenmöblierung
-	for z in range(-260,-2900,-420):
-		create_motorway_sign(Vector3(0,0,z), "A8  •  AUTO BOSS")
+	# Autobahn-Schilder: kompakter, höher und abwechslungsreicher
+	var motorway_signs=[
+		"A8  Karlsruhe   Frankfurt",
+		"A81  Heilbronn   Würzburg",
+		"A6  Mannheim   Nürnberg",
+		"A7  Würzburg   Hamburg",
+		"A3  Frankfurt   Köln",
+		"A5  Frankfurt   Kassel"
+	]
+	var sign_i=0
+	for z in range(-300,-2900,-500):
+		create_motorway_sign(Vector3(0,0,z), motorway_signs[sign_i % motorway_signs.size()])
+		sign_i+=1
 	for z in range(-120,-2900,-160):
 		box(Vector3(0.12,1.4,0.12),Vector3(-9.7,0.7,z),Color(0.75,0.77,0.80))
 		box(Vector3(0.12,1.4,0.12),Vector3(9.7,0.7,z-80),Color(0.75,0.77,0.80))
@@ -533,19 +544,97 @@ func create_scenery():
 
 
 
+func create_road_features():
+	# Überführungen
+	create_overpass(-760.0)
+	create_overpass(-2140.0)
+
+	# Zwei erkennbare Autobahn-Ausfahrten
+	create_exit_area(-1380.0, "Ausfahrt 12  Heilbronn")
+	create_exit_area(-2580.0, "Ausfahrt 29  Frankfurt")
+
+	# Kleine Gebäudegruppen und Böschungen am Straßenrand
+	for z in [-420.0,-980.0,-1660.0,-2380.0]:
+		create_roadside_buildings(Vector3(-25,0,z))
+	for z in [-620.0,-1840.0,-2720.0]:
+		create_roadside_buildings(Vector3(25,0,z))
+
+
+func create_overpass(z_pos):
+	var root=Node3D.new()
+	root.position=Vector3(0,0,z_pos)
+	add_child(root)
+
+	# Pfeiler außerhalb der Fahrbahn
+	station_box(root,Vector3(1.0,5.0,1.0),Vector3(-10.5,2.5,0),Color(0.48,0.50,0.54))
+	station_box(root,Vector3(1.0,5.0,1.0),Vector3(10.5,2.5,0),Color(0.48,0.50,0.54))
+	# Brückendeck hoch genug für Fahrzeuge
+	station_box(root,Vector3(30.0,0.75,5.0),Vector3(0,5.1,0),Color(0.30,0.31,0.34))
+	station_box(root,Vector3(30.0,0.20,0.20),Vector3(0,5.75,-2.25),Color(0.72,0.74,0.77))
+	station_box(root,Vector3(30.0,0.20,0.20),Vector3(0,5.75,2.25),Color(0.72,0.74,0.77))
+
+
+func create_exit_area(z_pos,label_text):
+	var root=Node3D.new()
+	root.position=Vector3(0,0,z_pos)
+	add_child(root)
+
+	# Abzweigende Fahrbahn rechts – optische Ausfahrt
+	rotated_box(root,Vector3(6.0,0.18,42.0),Vector3(10.0,0.04,-18.0),Color(0.16,0.16,0.18),-11.0)
+	rotated_box(root,Vector3(0.16,0.06,38.0),Vector3(7.7,0.16,-18.0),Color.WHITE,-11.0)
+	rotated_box(root,Vector3(0.16,0.06,38.0),Vector3(12.3,0.16,-18.0),Color.WHITE,-11.0)
+
+	# kleines grünes Ausfahrtsschild am rechten Rand
+	station_box(root,Vector3(0.18,2.8,0.18),Vector3(10.5,1.4,5.0),Color(0.75,0.77,0.80))
+	station_box(root,Vector3(3.7,1.0,0.14),Vector3(10.5,3.0,5.0),Color(0.02,0.35,0.18))
+	var label=Label3D.new()
+	label.text=label_text
+	label.font_size=18
+	label.outline_size=3
+	label.position=Vector3(10.5,3.0,4.9)
+	label.rotation_degrees.y=180
+	root.add_child(label)
+
+
+func create_roadside_buildings(pos):
+	var root=Node3D.new()
+	root.position=pos
+	add_child(root)
+
+	for i in range(3):
+		var x=float(i-1)*5.0
+		var h=randf_range(2.5,4.5)
+		station_box(root,Vector3(3.6,h,4.2),Vector3(x,h/2.0,0),Color(0.70+randf_range(0,0.12),0.62+randf_range(0,0.12),0.48+randf_range(0,0.12)))
+		station_box(root,Vector3(4.0,0.45,4.6),Vector3(x,h+0.18,0),Color(0.38,0.12,0.08))
+		# Fensterfront zur Autobahn
+		station_box(root,Vector3(1.3,0.75,0.08),Vector3(x,h*0.60,-2.12),Color(0.12,0.30,0.42))
+
+
+func rotated_box(parent,size_value,pos,color_value,y_rotation):
+	var obj=MeshInstance3D.new()
+	var mesh=BoxMesh.new()
+	mesh.size=size_value
+	obj.mesh=mesh
+	obj.position=pos
+	obj.rotation_degrees.y=y_rotation
+	obj.material_override=material(color_value)
+	parent.add_child(obj)
+
+
 func create_motorway_sign(pos:Vector3,text_value:String):
 	var root=Node3D.new()
 	root.position=pos
 	add_child(root)
-	station_box(root,Vector3(0.22,5.0,0.22),Vector3(-5.8,2.5,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(0.22,5.0,0.22),Vector3(5.8,2.5,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(12.0,0.22,0.22),Vector3(0,5.0,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(5.8,1.45,0.18),Vector3(0,4.25,-0.15),Color(0.02,0.28,0.55))
+	# Portal bleibt über der Fahrbahn, Schild selbst ist deutlich kleiner.
+	station_box(root,Vector3(0.16,5.6,0.16),Vector3(-7.4,2.8,0),Color(0.72,0.74,0.76))
+	station_box(root,Vector3(0.16,5.6,0.16),Vector3(7.4,2.8,0),Color(0.72,0.74,0.76))
+	station_box(root,Vector3(15.0,0.16,0.16),Vector3(0,5.55,0),Color(0.72,0.74,0.76))
+	station_box(root,Vector3(3.9,0.68,0.12),Vector3(0,5.25,-0.12),Color(0.02,0.28,0.55))
 	var label=Label3D.new()
 	label.text=text_value
-	label.font_size=38
-	label.outline_size=5
-	label.position=Vector3(0,4.25,-0.28)
+	label.font_size=18
+	label.outline_size=3
+	label.position=Vector3(0,5.25,-0.20)
 	label.rotation_degrees.y=180
 	root.add_child(label)
 
@@ -798,6 +887,11 @@ func create_vehicle_model(parent,color_value):
 	# Stoßfänger, Scheiben und Frontscheinwerfer für ein klareres Fahrzeugmodell
 	station_box(parent,Vector3(1.85,0.16,0.16),Vector3(0,0.52,-2.12),Color(0.06,0.06,0.07))
 	station_box(parent,Vector3(1.45,0.42,0.08),Vector3(0,1.48,-0.88),Color(0.10,0.24,0.34))
+	# Seitenscheiben und Spiegel
+	station_box(parent,Vector3(0.08,0.42,1.15),Vector3(-0.83,1.45,0.10),Color(0.10,0.24,0.34))
+	station_box(parent,Vector3(0.08,0.42,1.15),Vector3(0.83,1.45,0.10),Color(0.10,0.24,0.34))
+	station_box(parent,Vector3(0.18,0.16,0.34),Vector3(-1.08,1.25,-0.65),Color(0.05,0.05,0.06))
+	station_box(parent,Vector3(0.18,0.16,0.34),Vector3(1.08,1.25,-0.65),Color(0.05,0.05,0.06))
 	light_box(parent,Vector3(-0.62,0.82,-2.12),Color(1.0,0.92,0.62))
 	light_box(parent,Vector3(0.62,0.82,-2.12),Color(1.0,0.92,0.62))
 	light_box(parent,Vector3(-0.62,0.82,2.12),Color.RED)
@@ -1000,7 +1094,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 1.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 1.2\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
