@@ -267,7 +267,7 @@ func buy_company_upgrade_1202(kind):
 func show_company_hq_1202():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 12.0.2 • FIRMENZENTRALE"
+	title.text="AUTO BOSS 12.1.0 • FIRMENZENTRALE"
 	title.position=Vector2(350,45)
 	title.add_theme_font_size_override("font_size",34)
 	menu_root.add_child(title)
@@ -312,7 +312,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 12.0.2"
+	title.text="AUTO BOSS 12.1.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -530,8 +530,8 @@ func update_camera():
 		cam.global_position=car.global_position+Vector3(0,1.58,-0.35)
 		cam.look_at(car.global_position+Vector3(0,1.30,-28),Vector3.UP)
 	else:
-		cam.global_position=car.global_position+Vector3(0,4.3,8.8)
-		cam.look_at(car.global_position+Vector3(0,0.7,-11),Vector3.UP)
+		cam.global_position=car.global_position+Vector3(0,3.9,7.8)
+		cam.look_at(car.global_position+Vector3(0,0.8,-12),Vector3.UP)
 
 
 func update_mission(delta):
@@ -1112,12 +1112,12 @@ func create_overpass(z_pos):
 	add_child(root)
 
 	# Pfeiler außerhalb der Fahrbahn
-	station_box(root,Vector3(1.0,5.0,1.0),Vector3(-10.5,2.5,0),Color(0.48,0.50,0.54))
-	station_box(root,Vector3(1.0,5.0,1.0),Vector3(10.5,2.5,0),Color(0.48,0.50,0.54))
+	station_box(root,Vector3(1.0,7.0,1.0),Vector3(-10.5,3.5,0),Color(0.48,0.50,0.54))
+	station_box(root,Vector3(1.0,7.0,1.0),Vector3(10.5,3.5,0),Color(0.48,0.50,0.54))
 	# Brückendeck hoch genug für Fahrzeuge
-	station_box(root,Vector3(30.0,0.75,5.0),Vector3(0,5.1,0),Color(0.30,0.31,0.34))
-	station_box(root,Vector3(30.0,0.20,0.20),Vector3(0,5.75,-2.25),Color(0.72,0.74,0.77))
-	station_box(root,Vector3(30.0,0.20,0.20),Vector3(0,5.75,2.25),Color(0.72,0.74,0.77))
+	station_box(root,Vector3(30.0,0.75,5.0),Vector3(0,7.1,0),Color(0.30,0.31,0.34))
+	station_box(root,Vector3(30.0,0.20,0.20),Vector3(0,7.75,-2.25),Color(0.72,0.74,0.77))
+	station_box(root,Vector3(30.0,0.20,0.20),Vector3(0,7.75,2.25),Color(0.72,0.74,0.77))
 
 
 func create_exit_area(z_pos,label_text):
@@ -1299,15 +1299,15 @@ func create_motorway_sign(pos:Vector3,text_value:String):
 	root.position=pos
 	add_child(root)
 	# Portal bleibt über der Fahrbahn, Schild selbst ist deutlich kleiner.
-	station_box(root,Vector3(0.16,5.6,0.16),Vector3(-7.4,2.8,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(0.16,5.6,0.16),Vector3(7.4,2.8,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(15.0,0.16,0.16),Vector3(0,5.55,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(8.2,1.25,0.12),Vector3(0,5.15,-0.12),Color(0.02,0.28,0.55))
+	station_box(root,Vector3(0.16,7.6,0.16),Vector3(-7.4,3.8,0),Color(0.72,0.74,0.76))
+	station_box(root,Vector3(0.16,7.6,0.16),Vector3(7.4,3.8,0),Color(0.72,0.74,0.76))
+	station_box(root,Vector3(15.0,0.16,0.16),Vector3(0,7.55,0),Color(0.72,0.74,0.76))
+	station_box(root,Vector3(8.2,1.25,0.12),Vector3(0,7.15,-0.12),Color(0.02,0.28,0.55))
 	var label=Label3D.new()
 	label.text=text_value+"\n↓          ↓"
 	label.font_size=26
 	label.outline_size=5
-	label.position=Vector3(0,5.15,-0.20)
+	label.position=Vector3(0,7.15,-0.20)
 	label.rotation_degrees.y=0
 	root.add_child(label)
 
@@ -1820,7 +1820,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 12.0.2\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 12.1.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
