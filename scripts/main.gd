@@ -75,7 +75,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 6.5 systems
+# AUTO BOSS 6.6 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -190,7 +190,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 6.5"
+	title.text="AUTO BOSS 6.6"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -520,10 +520,10 @@ func spawn_traffic(z_pos):
 func update_traffic(delta):
 	traffic_timer+=delta
 
-	if traffic_timer>2.25:
+	if traffic_timer>2.75:
 		traffic_timer=0
-		if traffic.size()<18:
-			spawn_traffic(car.position.z-randf_range(170.0,240.0))
+		if traffic.size()<14:
+			spawn_traffic(car.position.z-randf_range(200.0,285.0))
 
 	var lanes=[-5.5,0.0,5.5]
 
@@ -542,15 +542,15 @@ func update_traffic(delta):
 				continue
 			if abs(other.position.x-t.position.x)<1.8:
 				var gap=t.position.z-other.position.z
-				if gap>0.0 and gap<15.0:
-					ai_speed=max(12.0,ai_speed-8.0)
+				if gap>0.0 and gap<24.0:
+					ai_speed=max(10.0,ai_speed-10.0)
 					lane_timer=0.0
 					break
 
 		# Gelegentlicher Spurwechsel / Überholen.
 		if lane_timer<=0.0:
-			lane_timer=randf_range(4.0,9.0)
-			if randi()%100<48:
+			lane_timer=randf_range(6.0,11.0)
+			if randi()%100<30:
 				var lane_index=0
 				var best_dist=999.0
 				for i in range(lanes.size()):
@@ -563,7 +563,7 @@ func update_traffic(delta):
 				var candidate_x=lanes[next_index]
 				var lane_free=true
 				for other in traffic:
-					if other!=t and is_instance_valid(other) and abs(other.position.x-candidate_x)<1.6 and abs(other.position.z-t.position.z)<18.0:
+					if other!=t and is_instance_valid(other) and abs(other.position.x-candidate_x)<1.6 and abs(other.position.z-t.position.z)<30.0:
 						lane_free=false
 						break
 				if lane_free:
@@ -573,7 +573,7 @@ func update_traffic(delta):
 		t.set_meta("target_x",target_x)
 		t.set_meta("traffic_speed",lerp(float(t.get_meta("traffic_speed",22.0)),ai_speed,delta*1.5))
 
-		t.position.x=move_toward(t.position.x,target_x,2.0*delta)
+		t.position.x=move_toward(t.position.x,target_x,1.35*delta)
 		t.position.z-=float(t.get_meta("traffic_speed",22.0))*delta
 
 		if t.position.z>car.position.z+110:
@@ -633,13 +633,13 @@ func check_collision(t):
 
 	if dx<1.8 and dz<3.5 and not t.get_meta("hit",false):
 		t.set_meta("hit",true)
-		damage=min(100.0,damage+randf_range(2.0,6.0))
-		speed*=0.35
+		damage=min(100.0,damage+randf_range(1.5,4.0))
+		speed*=0.55
 
 		if t.position.x<=car.position.x:
-			t.position.x-=2.5
+			t.position.x-=1.8
 		else:
-			t.position.x+=2.5
+			t.position.x+=1.8
 
 
 func update_world_30(delta):
@@ -722,10 +722,10 @@ func update_road_events_40(delta):
 	if camera_cooldown<=0.0 and kmh>speed_limit+15 and randi()%1000<5:
 		var over=kmh-speed_limit
 		var fine=30+over*2
-		fine=min(fine,240)
+		fine=min(fine,180)
 		money=max(0,money-fine)
 		fines_total+=fine
-		camera_cooldown=12.0
+		camera_cooldown=15.0
 		event_text="⚡ GEBLITZT!  "+str(kmh)+" km/h • -"+str(fine)+" €"
 
 	if kmh>speed_limit+45:
@@ -968,7 +968,7 @@ func create_rest_area_52(z_pos):
 
 
 
-# AUTO BOSS 6.5 – WORLD UPGRADE
+# AUTO BOSS 6.6 – WORLD UPGRADE
 func create_world_upgrade_53():
 	# Leitpfosten dichter gesetzt, damit Geschwindigkeit und Entfernung besser lesbar sind.
 	for z in range(-45,-2950,-45):
@@ -1493,27 +1493,27 @@ func create_ui():
 
 	settlement_panel=ColorRect.new()
 	settlement_panel.color=Color(0.02,0.04,0.08,0.96)
-	settlement_panel.position=Vector2(275,75)
-	settlement_panel.size=Vector2(730,590)
+	settlement_panel.position=Vector2(250,38)
+	settlement_panel.size=Vector2(780,650)
 	settlement_panel.visible=false
 	game_root.add_child(settlement_panel)
 
 	settlement_title=Label.new()
-	settlement_title.position=Vector2(55,22)
-	settlement_title.size=Vector2(620,78)
+	settlement_title.position=Vector2(55,18)
+	settlement_title.size=Vector2(670,72)
 	settlement_title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	settlement_title.add_theme_font_size_override("font_size",27)
 	settlement_panel.add_child(settlement_title)
 
 	settlement_details=Label.new()
-	settlement_details.position=Vector2(95,105)
-	settlement_details.size=Vector2(545,390)
-	settlement_details.add_theme_font_size_override("font_size",17)
+	settlement_details.position=Vector2(105,96)
+	settlement_details.size=Vector2(580,455)
+	settlement_details.add_theme_font_size_override("font_size",16)
 	settlement_panel.add_child(settlement_details)
 
 	settlement_next_button=Button.new()
 	settlement_next_button.text="NÄCHSTER AUFTRAG"
-	settlement_next_button.position=Vector2(75,510)
+	settlement_next_button.position=Vector2(90,570)
 	settlement_next_button.size=Vector2(260,60)
 	settlement_next_button.add_theme_font_size_override("font_size",19)
 	settlement_next_button.pressed.connect(func(): settlement_next_job())
@@ -1521,7 +1521,7 @@ func create_ui():
 
 	settlement_home_button=Button.new()
 	settlement_home_button.text="HAUPTMENÜ"
-	settlement_home_button.position=Vector2(395,510)
+	settlement_home_button.position=Vector2(430,570)
 	settlement_home_button.size=Vector2(260,60)
 	settlement_home_button.add_theme_font_size_override("font_size",19)
 	settlement_home_button.pressed.connect(func(): settlement_home())
@@ -1571,7 +1571,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 6.5\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 6.6\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
