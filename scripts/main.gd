@@ -144,6 +144,7 @@ func _ready():
 	create_visual_upgrade_100()
 	create_visual_upgrade_110()
 	create_road_graphics_150()
+	create_visual_revolution_160()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -483,7 +484,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 15.0 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 16.0 • DEUTSCHLAND EMPIRE"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -528,7 +529,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 15.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 16.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -622,11 +623,24 @@ func show_company_hq_1202():
 func show_main_menu():
 	game_state="menu"
 	menu_root.visible=true; game_root.visible=false; clear_menu()
-	var shade=ColorRect.new(); shade.color=Color(0.005,0.018,0.035,0.52); shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); menu_root.add_child(shade)
-	empire_panel_140(Vector2(22,22),Vector2(360,676),0.94)
+	# 16.0: eigenständiger Premium-Homescreen – die 3D-Welt scheint nicht mehr störend durch.
+	var backdrop=ColorRect.new(); backdrop.color=Color(0.006,0.012,0.024,0.985); backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); menu_root.add_child(backdrop)
+	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
+	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("15.0  •  ROAD & GRAPHICS",Vector2(50,94),16,Color(0.12,0.62,1.0))
-	empire_label_140("FAHRZEUGÜBERFÜHRUNG • KARRIERE • FIRMA",Vector2(50,126),11,Color(0.55,0.68,0.78))
+	empire_label_140("16.0  •  VISUAL REVOLUTION",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
+	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
+	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
+	empire_label_140("Aufträge fahren  •  Fuhrpark tunen  •  Standorte erobern  •  Firma skalieren",Vector2(438,130),15,Color(0.60,0.72,0.82))
+	empire_panel_140(Vector2(410,174),Vector2(845,300),0.94)
+	empire_label_140("LIVE OPERATIONS",Vector2(438,198),12,Color(0.42,0.70,0.92))
+	empire_label_140("DEUTSCHLAND IST DEIN SPIELFELD",Vector2(438,226),25,Color.WHITE)
+	empire_label_140("STUTTGART",Vector2(452,294),17,Color(0.35,1.0,0.58))
+	empire_label_140("━━━━━━━━━━━━━━  FRANKFURT  ━━━━━━━━━━━━━━  KÖLN",Vector2(560,294),16,Color(0.48,0.67,0.82))
+	empire_label_140("Nächster Auftrag",Vector2(452,352),12,Color(0.52,0.66,0.78))
+	empire_label_140("Bereit für die Straße",Vector2(452,378),22,Color.WHITE)
+	empire_label_140("Wähle links AUFTRAG STARTEN und baue deinen Ruf aus.",Vector2(452,420),14,Color(0.65,0.76,0.84))
 	var y=170
 	var items=[
 		["🚗  AUFTRAG STARTEN",func(): show_routes()],
@@ -698,9 +712,11 @@ func buy_upgrade(kind):
 
 func show_garage():
 	clear_menu()
+	var garage_bg=ColorRect.new(); garage_bg.color=Color(0.006,0.012,0.024,0.985); garage_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); menu_root.add_child(garage_bg)
+	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 11.0 • FUHRPARK & TUNING PRO"
+	title.text="GARAGE 16.0 • PERFORMANCE STUDIO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -2160,7 +2176,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 15.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 16.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2365,6 +2381,23 @@ func create_road_graphics_150():
 	for z in range(-420,-2900,-420):
 		create_hill(Vector3(-48,0,z),randf_range(16.0,24.0))
 		create_hill(Vector3(50,0,z-180),randf_range(18.0,28.0))
+
+# AUTO BOSS 16.0 – VISUAL REVOLUTION
+func create_visual_revolution_160():
+	# Rhythmus am Straßenrand: Leitpfosten, Lichtmasten und blaue Autobahn-Portale.
+	for z in range(-70,-2940,-95):
+		station_box(self,Vector3(0.12,0.95,0.12),Vector3(-9.55,0.58,z),Color(0.80,0.82,0.84))
+		station_box(self,Vector3(0.12,0.95,0.12),Vector3(9.55,0.58,z-42),Color(0.80,0.82,0.84))
+		station_box(self,Vector3(0.16,0.16,0.10),Vector3(-9.54,0.88,z),Color(0.08,0.08,0.09))
+		station_box(self,Vector3(0.16,0.16,0.10),Vector3(9.54,0.88,z-42),Color(0.08,0.08,0.09))
+	for z in [-360.0,-860.0,-1380.0,-1900.0,-2440.0]:
+		station_box(self,Vector3(0.16,6.2,0.16),Vector3(-9.0,3.2,z),Color(0.36,0.39,0.43))
+		station_box(self,Vector3(0.16,6.2,0.16),Vector3(9.0,3.2,z),Color(0.36,0.39,0.43))
+		station_box(self,Vector3(18.1,0.16,0.16),Vector3(0,6.2,z),Color(0.42,0.45,0.49))
+		station_box(self,Vector3(5.2,1.05,0.18),Vector3(0,5.55,z-0.12),Color(0.02,0.23,0.52))
+	# Dunklere Asphalt-Inlays erzeugen Geschwindigkeit und brechen die flache Fläche.
+	for z in range(-120,-2880,-260):
+		station_box(self,Vector3(13.8,0.012,18.0),Vector3(0,0.145,z),Color(0.105,0.11,0.12))
 
 func create_tree_cluster_150(pos:Vector3):
 	for i in range(5):
