@@ -75,7 +75,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 7.0 systems
+# AUTO BOSS 7.1 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -202,7 +202,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 7.0"
+	title.text="AUTO BOSS 7.1"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -273,8 +273,8 @@ func show_garage():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="GARAGE 7.0 • FUHRPARK & TUNING"
-	title.position=Vector2(410,35)
+	title.text="GARAGE 7.1 • FUHRPARK & TUNING"
+	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
 
@@ -283,7 +283,7 @@ func show_garage():
 		var b=Button.new()
 		var prefix="✓ " if i==selected_car else ""
 		b.text=prefix+c["name"]+"   •   Vmax "+str(int(c["max_speed"]*3.6))+" km/h   •   Verbrauch "+str(c["fuel_factor"])+"x"
-		b.position=Vector2(330,95+i*62)
+		b.position=Vector2(330,88+i*60)
 		b.size=Vector2(620,52)
 		b.add_theme_font_size_override("font_size",18)
 		var idx=i
@@ -305,7 +305,7 @@ func show_garage():
 		var b=Button.new()
 		var price_text="MAX" if level>=3 else str(upgrade_cost(level))+" €"
 		b.text=str(u[1])+"  Stufe "+str(level)+"/3  •  "+str(u[3])+"  •  "+price_text
-		b.position=Vector2(300,310+i*60)
+		b.position=Vector2(300,300+i*58)
 		b.size=Vector2(680,50)
 		b.disabled=level>=3 or (level<3 and money<upgrade_cost(level))
 		var kind=str(u[0])
@@ -314,10 +314,10 @@ func show_garage():
 
 	var cash=Label.new()
 	cash.text="Werkstatt-Konto: "+str(money)+" €"
-	cash.position=Vector2(535,505)
+	cash.position=Vector2(535,486)
 	cash.add_theme_font_size_override("font_size",18)
 	menu_root.add_child(cash)
-	menu_button("← ZURÜCK",Vector2(420,550),func(): show_main_menu())
+	menu_button("← ZURÜCK",Vector2(420,535),func(): show_main_menu())
 
 
 func start_mission():
@@ -980,7 +980,7 @@ func create_exit_area(z_pos,label_text):
 	label.font_size=18
 	label.outline_size=3
 	label.position=Vector3(10.5,3.0,4.9)
-	label.rotation_degrees.y=180
+	label.rotation_degrees.y=0
 	root.add_child(label)
 
 
@@ -1017,7 +1017,7 @@ func create_rest_area_52(z_pos):
 	label.font_size=22
 	label.outline_size=4
 	label.position=Vector3(0,3.8,-4)
-	label.rotation_degrees.y=180
+	label.rotation_degrees.y=0
 	root.add_child(label)
 
 
@@ -1081,7 +1081,7 @@ func create_rest_stop_detail_53(z_pos:float):
 	label.font_size=30
 	label.outline_size=5
 	label.position=Vector3(0,4.7,-4)
-	label.rotation_degrees.y=180
+	label.rotation_degrees.y=0
 	root.add_child(label)
 
 
@@ -1140,7 +1140,7 @@ func create_motorway_sign(pos:Vector3,text_value:String):
 	label.font_size=26
 	label.outline_size=5
 	label.position=Vector3(0,5.15,-0.20)
-	label.rotation_degrees.y=180
+	label.rotation_degrees.y=0
 	root.add_child(label)
 
 
@@ -1169,7 +1169,7 @@ func create_service_station_at(pos,station_name,fuel_price):
 	sign.font_size=32
 	sign.outline_size=6
 	sign.position=Vector3(0,5.2,0)
-	sign.rotation_degrees.y=180
+	sign.rotation_degrees.y=0
 	station.add_child(sign)
 
 
@@ -1220,7 +1220,7 @@ func create_service_station_legacy_unused():
 	sign.font_size=34
 	sign.outline_size=6
 	sign.position=Vector3(0,5.2,0)
-	sign.rotation_degrees.y=180
+	sign.rotation_degrees.y=0
 	station.add_child(sign)
 
 
@@ -1484,22 +1484,24 @@ func create_ui():
 	game_root.add_child(route_progress)
 
 	service_label=Label.new()
-	service_label.position=Vector2(420,91)
-	service_label.add_theme_font_size_override("font_size",15)
+	service_label.position=Vector2(785,91)
+	service_label.size=Vector2(250,25)
+	service_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	service_label.add_theme_font_size_override("font_size",14)
 	game_root.add_child(service_label)
 
 	refuel_button=Button.new()
 	refuel_button.text="TANKEN"
-	refuel_button.position=Vector2(885,545)
-	refuel_button.size=Vector2(120,70)
+	refuel_button.position=Vector2(1030,390)
+	refuel_button.size=Vector2(150,64)
 	refuel_button.visible=false
 	refuel_button.pressed.connect(func(): refuel_car())
 	game_root.add_child(refuel_button)
 
 	repair_button=Button.new()
 	repair_button.text="REPARIEREN"
-	repair_button.position=Vector2(885,620)
-	repair_button.size=Vector2(120,70)
+	repair_button.position=Vector2(1030,462)
+	repair_button.size=Vector2(150,64)
 	repair_button.visible=false
 	repair_button.pressed.connect(func(): repair_car())
 	game_root.add_child(repair_button)
@@ -1547,36 +1549,36 @@ func create_ui():
 
 	settlement_panel=ColorRect.new()
 	settlement_panel.color=Color(0.02,0.04,0.08,0.96)
-	settlement_panel.position=Vector2(250,38)
-	settlement_panel.size=Vector2(780,650)
+	settlement_panel.position=Vector2(270,24)
+	settlement_panel.size=Vector2(740,672)
 	settlement_panel.visible=false
 	game_root.add_child(settlement_panel)
 
 	settlement_title=Label.new()
-	settlement_title.position=Vector2(55,18)
-	settlement_title.size=Vector2(670,72)
+	settlement_title.position=Vector2(35,16)
+	settlement_title.size=Vector2(670,76)
 	settlement_title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	settlement_title.add_theme_font_size_override("font_size",27)
 	settlement_panel.add_child(settlement_title)
 
 	settlement_details=Label.new()
-	settlement_details.position=Vector2(105,96)
-	settlement_details.size=Vector2(580,455)
-	settlement_details.add_theme_font_size_override("font_size",16)
+	settlement_details.position=Vector2(92,96)
+	settlement_details.size=Vector2(560,470)
+	settlement_details.add_theme_font_size_override("font_size",14)
 	settlement_panel.add_child(settlement_details)
 
 	settlement_next_button=Button.new()
 	settlement_next_button.text="NÄCHSTER AUFTRAG"
-	settlement_next_button.position=Vector2(90,570)
-	settlement_next_button.size=Vector2(260,60)
+	settlement_next_button.position=Vector2(75,596)
+	settlement_next_button.size=Vector2(270,54)
 	settlement_next_button.add_theme_font_size_override("font_size",19)
 	settlement_next_button.pressed.connect(func(): settlement_next_job())
 	settlement_panel.add_child(settlement_next_button)
 
 	settlement_home_button=Button.new()
 	settlement_home_button.text="HAUPTMENÜ"
-	settlement_home_button.position=Vector2(430,570)
-	settlement_home_button.size=Vector2(260,60)
+	settlement_home_button.position=Vector2(395,596)
+	settlement_home_button.size=Vector2(270,54)
 	settlement_home_button.add_theme_font_size_override("font_size",19)
 	settlement_home_button.pressed.connect(func(): settlement_home())
 	settlement_panel.add_child(settlement_home_button)
@@ -1625,7 +1627,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 7.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 7.1\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
