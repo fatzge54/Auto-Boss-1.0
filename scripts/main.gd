@@ -88,6 +88,9 @@ var event_text="Freie Fahrt"
 var event_label
 var fine_label
 var headlights_on=true
+var camera_mode=0 # 0 = Verfolger, 1 = Cockpit
+var camera_button
+var light_button
 var police_heat=0
 var clean_mission_bonus=0
 var streak_bonus=0
@@ -116,6 +119,7 @@ func _ready():
 	create_extra_scenery_52()
 	create_world_upgrade_53()
 	create_visual_upgrade_100()
+	create_visual_upgrade_110()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -221,7 +225,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 10.0"
+	title.text="AUTO BOSS 11.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -298,7 +302,7 @@ func show_garage():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="GARAGE 9.0 • FUHRPARK & TUNING PRO"
+	title.text="GARAGE 11.0 • FUHRPARK & TUNING PRO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -432,8 +436,13 @@ func wrap_road():
 
 
 func update_camera():
-	cam.global_position=car.global_position+Vector3(0,4.3,8.8)
-	cam.look_at(car.global_position+Vector3(0,0.7,-11),Vector3.UP)
+	if camera_mode==1:
+		# Cockpit/Driver view: tief und nah an der Windschutzscheibe.
+		cam.global_position=car.global_position+Vector3(0,1.58,-0.35)
+		cam.look_at(car.global_position+Vector3(0,1.30,-28),Vector3.UP)
+	else:
+		cam.global_position=car.global_position+Vector3(0,4.3,8.8)
+		cam.look_at(car.global_position+Vector3(0,0.7,-11),Vector3.UP)
 
 
 func update_mission(delta):
@@ -775,7 +784,13 @@ func update_world_30(delta):
 
 	for lamp in headlights:
 		if is_instance_valid(lamp):
-			lamp.visible=is_night or weather_state=="Regen"
+			lamp.visible=headlights_on and (is_night or weather_state=="Regen")
+	# KI-Lichtkegel ebenfalls nur nachts / bei Regen aktivieren.
+	for t in traffic:
+		if is_instance_valid(t):
+			var ai_lamp=t.get_node_or_null("AIHeadlight11")
+			if ai_lamp!=null:
+				ai_lamp.visible=is_night or weather_state=="Regen"
 
 	# 5.3: Straßenlaternen schalten sich nachts und bei Regen sichtbar ein.
 	for node in get_tree().get_nodes_in_group("road_lamps_53"):
@@ -864,12 +879,13 @@ func add_player_headlights():
 	headlights.clear()
 	for x in [-0.62,0.62]:
 		var light=SpotLight3D.new()
-		light.position=Vector3(x,0.9,-2.0)
-		light.rotation_degrees.x=-90
-		light.spot_range=28.0
-		light.spot_angle=38.0
-		light.light_energy=3.2
-		light.light_color=Color(1.0,0.93,0.72)
+		light.position=Vector3(x,0.92,-2.05)
+		# SpotLight3D strahlt entlang -Z: nur leicht auf die Fahrbahn neigen.
+		light.rotation_degrees.x=-7.0
+		light.spot_range=52.0
+		light.spot_angle=34.0
+		light.light_energy=6.0
+		light.light_color=Color(1.0,0.93,0.74)
 		light.shadow_enabled=false
 		car.add_child(light)
 		headlights.append(light)
@@ -1160,10 +1176,20 @@ func create_suv_model_53(parent,color_value):
 
 
 func add_ai_lights_53(parent):
-	# Rücklichter geben nachts Orientierung; echte Lichter bleiben bewusst günstig für Mobile.
+	# 11.0: emissive Rück-/Frontlichter plus ein günstiger gemeinsamer Lichtkegel pro KI-Auto.
 	for x in [-0.68,0.68]:
 		light_box(parent,Vector3(x,0.72,2.18),Color(0.95,0.03,0.02))
 		light_box(parent,Vector3(x,0.72,-2.18),Color(1.0,0.88,0.62))
+	var beam=SpotLight3D.new()
+	beam.name="AIHeadlight11"
+	beam.position=Vector3(0,0.82,-2.2)
+	beam.rotation_degrees.x=-6.0
+	beam.spot_range=22.0
+	beam.spot_angle=42.0
+	beam.light_energy=1.7
+	beam.light_color=Color(1.0,0.91,0.70)
+	beam.shadow_enabled=false
+	parent.add_child(beam)
 
 func rotated_box(parent,size_value,pos,color_value,y_rotation):
 	var obj=MeshInstance3D.new()
@@ -1465,7 +1491,11 @@ func light_box(parent,pos,color_value):
 	mesh.size=Vector3(0.42,0.25,0.08)
 	obj.mesh=mesh
 	obj.position=pos
-	obj.material_override=material(color_value)
+	var lm=material(color_value)
+	lm.emission_enabled=true
+	lm.emission=color_value
+	lm.emission_energy_multiplier=2.2
+	obj.material_override=lm
 	parent.add_child(obj)
 
 
@@ -1569,6 +1599,20 @@ func create_ui():
 	pause_button.size=Vector2(70,55)
 	pause_button.pressed.connect(func(): toggle_pause())
 	game_root.add_child(pause_button)
+
+	camera_button=Button.new()
+	camera_button.text="KAMERA"
+	camera_button.position=Vector2(1080,130)
+	camera_button.size=Vector2(95,55)
+	camera_button.pressed.connect(func(): toggle_camera_110())
+	game_root.add_child(camera_button)
+
+	light_button=Button.new()
+	light_button.text="LICHT AUTO"
+	light_button.position=Vector2(965,130)
+	light_button.size=Vector2(105,55)
+	light_button.pressed.connect(func(): toggle_lights_110())
+	game_root.add_child(light_button)
 
 	pause_panel=ColorRect.new()
 	pause_panel.color=Color(0.02,0.04,0.08,0.94)
@@ -1684,7 +1728,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 10.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 11.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -1705,6 +1749,26 @@ func update_hud():
 		var total=float(routes[selected_route]["distance"])
 		route_progress.value=clamp((1.0-distance_left/total)*100.0,0.0,100.0)
 
+
+
+func toggle_camera_110():
+	camera_mode=1-camera_mode
+	if camera_button!=null:
+		camera_button.text="COCKPIT" if camera_mode==1 else "KAMERA"
+
+func toggle_lights_110():
+	headlights_on=not headlights_on
+	if light_button!=null:
+		light_button.text="LICHT AN" if headlights_on else "LICHT AUS"
+
+func create_visual_upgrade_110():
+	# 11.0: zusätzliche Leitpfosten/Reflektoren und Schilder für bessere Nachtorientierung.
+	for z in range(-40,-2960,-80):
+		for side in [-1.0,1.0]:
+			station_box(self,Vector3(0.16,0.72,0.16),Vector3(side*8.65,0.46,z),Color(0.88,0.88,0.84))
+			light_box(self,Vector3(side*8.58,0.70,z-0.10),Color(1.0,0.80,0.30))
+	create_motorway_sign(Vector3(0,0,-1680),"A8  Karlsruhe   München")
+	create_motorway_sign(Vector3(0,0,-2680),"Ausfahrt  1000 m")
 
 
 func route_destination_80():
