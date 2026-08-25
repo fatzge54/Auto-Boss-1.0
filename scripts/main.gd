@@ -143,6 +143,7 @@ func _ready():
 	create_world_upgrade_53()
 	create_visual_upgrade_100()
 	create_visual_upgrade_110()
+	create_road_graphics_150()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -482,7 +483,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 14.0 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 15.0 • DEUTSCHLAND EMPIRE"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -527,7 +528,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 14.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 15.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -624,7 +625,7 @@ func show_main_menu():
 	var shade=ColorRect.new(); shade.color=Color(0.005,0.018,0.035,0.52); shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); menu_root.add_child(shade)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.94)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("14.0  •  EMPIRE UPDATE",Vector2(50,94),16,Color(0.12,0.62,1.0))
+	empire_label_140("15.0  •  ROAD & GRAPHICS",Vector2(50,94),16,Color(0.12,0.62,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG • KARRIERE • FIRMA",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	var y=170
 	var items=[
@@ -1864,6 +1865,11 @@ func rebuild_player():
 
 
 func create_vehicle_model(parent,color_value):
+	# 15.0: komplett neu gezeichnetes, niedrigeres Fahrzeug mit klarer Silhouette.
+	create_vehicle_model_150(parent,color_value)
+	return
+
+func create_vehicle_model_legacy(parent,color_value):
 	var body=MeshInstance3D.new()
 	var bm=BoxMesh.new()
 	bm.size=Vector3(2.0,0.75,4.2)
@@ -2154,7 +2160,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 14.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 15.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2288,3 +2294,100 @@ func create_sport_model_100(parent,color_value):
 	light_box(parent,Vector3(0.66,0.72,-2.18),Color(1.0,0.94,0.72))
 	light_box(parent,Vector3(-0.70,0.70,2.18),Color.RED)
 	light_box(parent,Vector3(0.70,0.70,2.18),Color.RED)
+
+
+# AUTO BOSS 15.0 – ROAD & GRAPHICS OVERHAUL
+func create_vehicle_model_150(parent,color_value):
+	# Unterbau / Schweller
+	station_box(parent,Vector3(2.04,0.18,3.75),Vector3(0,0.48,0.10),Color(0.025,0.03,0.04))
+	# Hauptkarosserie in mehreren Ebenen – deutlich weniger Kastenoptik.
+	station_box(parent,Vector3(1.96,0.48,3.72),Vector3(0,0.72,0.02),color_value.darkened(0.05))
+	station_box(parent,Vector3(1.88,0.32,3.95),Vector3(0,0.92,-0.03),color_value)
+	rotated_box(parent,Vector3(1.82,0.30,1.30),Vector3(0,1.10,-1.45),color_value.lightened(0.04),0.0)
+	# Dach und Glas – kompakte Fastback-Silhouette.
+	station_box(parent,Vector3(1.58,0.16,1.92),Vector3(0,1.62,0.15),color_value.darkened(0.10))
+	rotated_box(parent,Vector3(1.55,0.72,0.08),Vector3(0,1.39,-0.76),Color(0.055,0.11,0.16),0.0)
+	rotated_box(parent,Vector3(1.55,0.58,0.08),Vector3(0,1.36,0.94),Color(0.055,0.10,0.14),0.0)
+	station_box(parent,Vector3(0.07,0.54,1.45),Vector3(-0.82,1.34,0.12),Color(0.055,0.11,0.16))
+	station_box(parent,Vector3(0.07,0.54,1.45),Vector3(0.82,1.34,0.12),Color(0.055,0.11,0.16))
+	# Stoßfänger, Grill, Kennzeichen und Leuchten.
+	station_box(parent,Vector3(1.86,0.17,0.14),Vector3(0,0.54,-2.03),Color(0.035,0.04,0.05))
+	station_box(parent,Vector3(0.90,0.22,0.05),Vector3(0,0.70,-2.11),Color(0.02,0.025,0.03))
+	station_box(parent,Vector3(0.48,0.15,0.04),Vector3(0,0.53,-2.12),Color(0.88,0.88,0.82))
+	station_box(parent,Vector3(1.90,0.15,0.14),Vector3(0,0.55,2.03),Color(0.035,0.04,0.05))
+	light_box(parent,Vector3(-0.62,0.88,-2.08),Color(0.92,0.97,1.0))
+	light_box(parent,Vector3(0.62,0.88,-2.08),Color(0.92,0.97,1.0))
+	light_box(parent,Vector3(-0.64,0.82,2.08),Color(1.0,0.04,0.025))
+	light_box(parent,Vector3(0.64,0.82,2.08),Color(1.0,0.04,0.025))
+	# Räder + silberne Felgen.
+	for wx in [-1.0,1.0]:
+		for wz in [-1.28,1.28]:
+			var wheel=MeshInstance3D.new()
+			var wm=CylinderMesh.new()
+			wm.top_radius=0.39
+			wm.bottom_radius=0.39
+			wm.height=0.30
+			wheel.mesh=wm
+			wheel.position=Vector3(wx,0.47,wz)
+			wheel.rotation_degrees=Vector3(0,0,90)
+			wheel.material_override=material(Color(0.018,0.02,0.024))
+			parent.add_child(wheel)
+			var rim=MeshInstance3D.new()
+			var rm=CylinderMesh.new()
+			rm.top_radius=0.22
+			rm.bottom_radius=0.22
+			rm.height=0.315
+			rim.mesh=rm
+			rim.position=Vector3(wx,0.47,wz)
+			rim.rotation_degrees=Vector3(0,0,90)
+			rim.material_override=material(Color(0.55,0.58,0.62))
+			parent.add_child(rim)
+	# Spiegel + Heckspoilerkante.
+	station_box(parent,Vector3(0.20,0.12,0.32),Vector3(-1.03,1.28,-0.62),Color(0.035,0.04,0.05))
+	station_box(parent,Vector3(0.20,0.12,0.32),Vector3(1.03,1.28,-0.62),Color(0.035,0.04,0.05))
+	station_box(parent,Vector3(1.48,0.08,0.25),Vector3(0,1.08,1.94),color_value.darkened(0.12))
+
+func create_road_graphics_150():
+	# 15.0: Asphalt-Schultern, Mittellinien, Rumble-Strips und Reflektoren.
+	station_box(self,Vector3(1.15,0.035,2990),Vector3(-8.62,0.125,-1495),Color(0.15,0.16,0.17))
+	station_box(self,Vector3(1.15,0.035,2990),Vector3(8.62,0.125,-1495),Color(0.15,0.16,0.17))
+	for z in range(-20,-2980,-18):
+		station_box(self,Vector3(0.13,0.045,5.6),Vector3(-3.0,0.19,z),Color(0.94,0.94,0.91))
+		station_box(self,Vector3(0.13,0.045,5.6),Vector3(3.0,0.19,z-9),Color(0.94,0.94,0.91))
+	for z in range(-35,-2980,-34):
+		station_box(self,Vector3(0.26,0.10,0.55),Vector3(-7.72,0.23,z),Color(1.0,0.82,0.34))
+		station_box(self,Vector3(0.26,0.10,0.55),Vector3(7.72,0.23,z-17),Color(1.0,0.82,0.34))
+	# Baumgruppen statt einzelner Spielzeugbäume.
+	for z in range(-90,-2880,-150):
+		create_tree_cluster_150(Vector3(-20-randf_range(0,9),0,z))
+		create_tree_cluster_150(Vector3(20+randf_range(0,9),0,z-70))
+	# Fernkulisse erzeugt Tiefe am Horizont.
+	for z in range(-420,-2900,-420):
+		create_hill(Vector3(-48,0,z),randf_range(16.0,24.0))
+		create_hill(Vector3(50,0,z-180),randf_range(18.0,28.0))
+
+func create_tree_cluster_150(pos:Vector3):
+	for i in range(5):
+		var p=pos+Vector3(randf_range(-5.0,5.0),0,randf_range(-9.0,9.0))
+		var root=Node3D.new()
+		root.position=p
+		add_child(root)
+		var trunk=MeshInstance3D.new()
+		var tm=CylinderMesh.new()
+		tm.top_radius=0.18
+		tm.bottom_radius=0.30
+		tm.height=2.8
+		trunk.mesh=tm
+		trunk.position.y=1.4
+		trunk.material_override=material(Color(0.25,0.13,0.055))
+		root.add_child(trunk)
+		for j in range(3):
+			var crown=MeshInstance3D.new()
+			var cm=SphereMesh.new()
+			cm.radius=1.0
+			cm.height=2.0
+			crown.mesh=cm
+			crown.scale=Vector3(1.15+0.18*j,0.82,1.05+0.12*j)
+			crown.position=Vector3(randf_range(-0.35,0.35),2.7+0.55*j,randf_range(-0.25,0.25))
+			crown.material_override=material(Color(0.045+0.018*j,0.30+randf_range(0.0,0.10),0.07))
+			root.add_child(crown)
