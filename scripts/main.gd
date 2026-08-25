@@ -276,8 +276,11 @@ func company_passive_income_122():
 	var teams=company_auto_capacity_122()
 	if teams<=0:
 		return 0
-	var base=teams*(85+company_office*25)
-	return int(round(base*(1.0+float(company_office)*0.10)))
+	# 13.2: Jede aktive Niederlassung trägt zum Auto-Betrieb bei.
+	var network_total=0
+	for i in range(branch_count):
+		network_total+=branch_income_131(i)
+	return int(round(network_total*(1.0+float(company_office)*0.06)))
 
 func run_company_jobs_122():
 	var teams=company_auto_capacity_122()
@@ -285,6 +288,8 @@ func run_company_jobs_122():
 	if teams>0:
 		company_jobs+=teams
 		company_income_total+=company_passive_last
+		company_cash_total+=company_passive_last
+		logistics_rating+=max(1,branch_count)
 		money+=company_passive_last
 
 func company_level_1202():
@@ -393,7 +398,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 13.1 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 13.2 • DEUTSCHLAND EMPIRE"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -438,69 +443,76 @@ func show_branch_network_131():
 func show_company_hq_1202():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 13.1 • FIRMENZENTRALE"
-	title.position=Vector2(355,25)
-	title.add_theme_font_size_override("font_size",32)
+	title.text="AUTO BOSS 13.2 • FIRMENZENTRALE"
+	title.position=Vector2(360,22)
+	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
 
 	var info=Label.new()
-	info.text="Stufe "+str(company_level_1202())+"   •   "+str(company_auto_capacity_122())+" Teams   •   "+str(branch_count)+" Standorte   •   Firmengewinn "+str(company_income_total)+" €"
-	info.position=Vector2(355,72)
-	info.add_theme_font_size_override("font_size",18)
+	info.text="STUFE "+str(company_level_1202())+"   •   TEAMS "+str(company_auto_capacity_122())+"   •   STANDORTE "+str(branch_count)+"/5   •   GEWINN "+str(company_income_total)+" €"
+	info.position=Vector2(340,66)
+	info.add_theme_font_size_override("font_size",17)
 	menu_root.add_child(info)
 
 	var passive=Label.new()
-	passive.text="AUTO-BETRIEB: nächste Fahrt +"+str(company_passive_income_122())+" €   •   Eigene Fahrt +"+str(company_bonus_1202())+" €   •   Jobs "+str(company_jobs)
-	passive.position=Vector2(335,105)
-	passive.add_theme_font_size_override("font_size",16)
+	passive.text="AUTO-BETRIEB  +"+str(company_passive_income_122())+" €/Fahrt   •   EIGENE FAHRT  +"+str(company_bonus_1202())+" €   •   FIRMENJOBS "+str(company_jobs)
+	passive.position=Vector2(325,98)
+	passive.add_theme_font_size_override("font_size",15)
 	menu_root.add_child(passive)
 
 	var b1=Button.new()
 	b1.text="MITARBEITER  "+str(company_staff)+"/5   •   Fahrer-Team erweitern   •   "+str(company_upgrade_cost_1202(company_staff))+" €"
-	b1.position=Vector2(325,145); b1.size=Vector2(630,52); b1.disabled=company_staff>=5
+	b1.position=Vector2(325,135); b1.size=Vector2(630,48); b1.disabled=company_staff>=5 or money<company_upgrade_cost_1202(company_staff)
 	b1.pressed.connect(func(): buy_company_upgrade_1202("staff")); menu_root.add_child(b1)
 
 	var b2=Button.new()
 	b2.text="FIRMENFLOTTE  "+str(company_fleet)+"/5   •   Firmenfahrzeug kaufen   •   "+str(company_upgrade_cost_1202(company_fleet))+" €"
-	b2.position=Vector2(325,207); b2.size=Vector2(630,52); b2.disabled=company_fleet>=5
+	b2.position=Vector2(325,193); b2.size=Vector2(630,48); b2.disabled=company_fleet>=5 or money<company_upgrade_cost_1202(company_fleet)
 	b2.pressed.connect(func(): buy_company_upgrade_1202("fleet")); menu_root.add_child(b2)
 
 	var b3=Button.new()
 	b3.text="DISPOSITION  "+str(company_office)+"/5   •   Ertrag pro Team steigern   •   "+str(company_upgrade_cost_1202(company_office))+" €"
-	b3.position=Vector2(325,269); b3.size=Vector2(630,52); b3.disabled=company_office>=5
+	b3.position=Vector2(325,251); b3.size=Vector2(630,48); b3.disabled=company_office>=5 or money<company_upgrade_cost_1202(company_office)
 	b3.pressed.connect(func(): buy_company_upgrade_1202("office")); menu_root.add_child(b3)
 
-	var management=Label.new()
-	management.text="FAHRER: "+company_driver_name_123()+"  L"+str(driver_level)+"/5  •  Gehalt "+str(driver_salary)+" €      FLOTTE: "+str(fleet_condition)+"%  •  Dispo-Rep "+str(dispatch_reputation)+"  •  Großverträge "+str(company_contracts_won)
-	management.position=Vector2(275,342)
-	management.add_theme_font_size_override("font_size",16)
-	menu_root.add_child(management)
+	var driver_info=Label.new()
+	driver_info.text="FAHRER   "+company_driver_name_123()+"  L"+str(driver_level)+"/5   •   Gehalt "+str(driver_salary)+" €   •   Dispo-Rep "+str(dispatch_reputation)
+	driver_info.position=Vector2(330,320)
+	driver_info.add_theme_font_size_override("font_size",15)
+	menu_root.add_child(driver_info)
+
+	var fleet_info=Label.new()
+	fleet_info.text="FLOTTE   "+str(fleet_condition)+"%   •   Großverträge "+str(company_contracts_won)+"   •   Logistik-Rating "+str(logistics_rating)+"   •   Elite "+str(elite_contracts)
+	fleet_info.position=Vector2(330,348)
+	fleet_info.add_theme_font_size_override("font_size",15)
+	menu_root.add_child(fleet_info)
 
 	var train=Button.new()
 	train.text="FAHRER-TRAINING   •   "+str(driver_upgrade_cost_123())+" €"
-	train.position=Vector2(300,380); train.size=Vector2(330,48)
+	train.position=Vector2(300,382); train.size=Vector2(330,44)
 	train.disabled=driver_level>=5 or money<driver_upgrade_cost_123()
 	train.pressed.connect(func(): train_driver_123()); menu_root.add_child(train)
 
 	var repair=Button.new()
 	var repair_cost=(100-fleet_condition)*8
 	repair.text="FLOTTE WARTEN   •   "+str(repair_cost)+" €"
-	repair.position=Vector2(650,380); repair.size=Vector2(330,48)
+	repair.position=Vector2(650,382); repair.size=Vector2(330,44)
 	repair.disabled=fleet_condition>=100 or money<repair_cost
 	repair.pressed.connect(func(): repair_company_fleet_123()); menu_root.add_child(repair)
 
 	var empire=Label.new()
-	empire.text="IMPERIUM: "+empire_rank_130()+"   •   Stufe "+str(empire_level)+"   •   Logistik-Rating "+str(logistics_rating)+"   •   Elite-Verträge "+str(elite_contracts)+"\nFirmenumsatz gesamt: "+str(company_cash_total)+" €   •   Nächster Standort: "+("MAXIMUM" if branch_count>=5 else branch_city_131(branch_count))
-	empire.position=Vector2(315,450)
-	empire.add_theme_font_size_override("font_size",16)
+	empire.text="IMPERIUM   "+empire_rank_130()+"   •   Stufe "+str(empire_level)+"   •   Umsatz "+str(company_cash_total)+" €
+NÄCHSTER STANDORT   "+("DEUTSCHLAND KOMPLETT" if branch_count>=5 else branch_city_131(branch_count)+" • "+str(branch_cost_130())+" €")
+	empire.position=Vector2(330,450)
+	empire.add_theme_font_size_override("font_size",15)
 	menu_root.add_child(empire)
 
 	var network=Button.new()
-	network.text="🇩🇪  DEUTSCHLAND-NETZWERK   •   "+str(branch_count)+"/5 NIEDERLASSUNGEN"
-	network.position=Vector2(300,515); network.size=Vector2(680,50)
+	network.text="🇩🇪  DEUTSCHLAND-EMPIRE   •   "+str(branch_count)+"/5 NIEDERLASSUNGEN   •   +"+str(company_passive_income_122())+" €/FAHRT"
+	network.position=Vector2(300,515); network.size=Vector2(680,48)
 	network.pressed.connect(func(): show_branch_network_131()); menu_root.add_child(network)
 
-	menu_button("← ZURÜCK",Vector2(420,610),func(): show_main_menu())
+	menu_button("← ZURÜCK",Vector2(420,595),func(): show_main_menu())
 
 
 func show_main_menu():
@@ -510,7 +522,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 13.1"
+	title.text="AUTO BOSS 13.2"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -2041,7 +2053,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 13.1\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 13.2\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
