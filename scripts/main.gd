@@ -120,7 +120,7 @@ var company_cash_total=0
 
 var company_income_total=0
 var company_passive_last=0
-# AUTO BOSS 13.4 CONTRACT COMMAND
+# AUTO BOSS 14.0 CONTRACT COMMAND
 var dispatch_mode=0 # 0 BALANCE, 1 SICHER, 2 PROFIT
 var dispatch_route=0
 var dispatch_streak=0
@@ -149,6 +149,7 @@ func _ready():
 	create_player()
 	create_rain_system()
 	create_ui()
+	apply_empire_theme_140()
 	show_main_menu()
 
 
@@ -235,6 +236,50 @@ func load_save():
 	dispatch_streak=int(cfg.get_value("player","dispatch_streak",0))
 	career_level=1+int(jobs_completed/3)
 
+
+func apply_empire_theme_140():
+	var theme=Theme.new()
+	theme.default_font_size=18
+	theme.set_color("font_color","Label",Color(0.92,0.96,1.0))
+	theme.set_color("font_color","Button",Color(0.94,0.97,1.0))
+	theme.set_color("font_hover_color","Button",Color.WHITE)
+	var normal=StyleBoxFlat.new()
+	normal.bg_color=Color(0.025,0.055,0.095,0.90)
+	normal.border_color=Color(0.10,0.27,0.43,0.90)
+	normal.set_border_width_all(1)
+	normal.corner_radius_top_left=7; normal.corner_radius_top_right=7; normal.corner_radius_bottom_left=7; normal.corner_radius_bottom_right=7
+	var hover=normal.duplicate()
+	hover.bg_color=Color(0.035,0.22,0.52,0.96)
+	hover.border_color=Color(0.18,0.58,1.0)
+	var pressed=normal.duplicate()
+	pressed.bg_color=Color(0.02,0.34,0.78,1.0)
+	var disabled=normal.duplicate()
+	disabled.bg_color=Color(0.035,0.045,0.06,0.72)
+	theme.set_stylebox("normal","Button",normal)
+	theme.set_stylebox("hover","Button",hover)
+	theme.set_stylebox("pressed","Button",pressed)
+	theme.set_stylebox("disabled","Button",disabled)
+	theme.set_color("font_disabled_color","Button",Color(0.48,0.55,0.62))
+	menu_root.theme=theme
+	game_root.theme=theme
+
+func empire_panel_140(pos:Vector2,size:Vector2,alpha:float=0.92):
+	var panel=ColorRect.new()
+	panel.color=Color(0.015,0.035,0.065,alpha)
+	panel.position=pos; panel.size=size
+	menu_root.add_child(panel)
+	return panel
+
+func empire_label_140(text_value:String,pos:Vector2,size_value:int=18,color_value:Color=Color(0.92,0.96,1.0)):
+	var l=Label.new(); l.text=text_value; l.position=pos
+	l.add_theme_font_size_override("font_size",size_value)
+	l.add_theme_color_override("font_color",color_value)
+	menu_root.add_child(l); return l
+
+func empire_stat_140(title:String,value:String,pos:Vector2,width:float=145.0):
+	var p=ColorRect.new(); p.color=Color(0.02,0.075,0.12,0.94); p.position=pos; p.size=Vector2(width,62); menu_root.add_child(p)
+	var a=Label.new(); a.text=title; a.position=Vector2(12,8); a.add_theme_font_size_override("font_size",11); a.add_theme_color_override("font_color",Color(0.52,0.66,0.78)); p.add_child(a)
+	var b=Label.new(); b.text=value; b.position=Vector2(12,27); b.add_theme_font_size_override("font_size",21); b.add_theme_color_override("font_color",Color(0.35,1.0,0.56)); p.add_child(b)
 
 func clear_menu():
 	for child in menu_root.get_children():
@@ -437,7 +482,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 13.4 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 14.0 • DEUTSCHLAND EMPIRE"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -482,7 +527,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 13.4 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 14.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -542,118 +587,67 @@ func show_company_dispatch_133():
 
 func show_company_hq_1202():
 	clear_menu()
-	var title=Label.new()
-	title.text="AUTO BOSS 13.4 • FIRMENZENTRALE"
-	title.position=Vector2(355,20)
-	title.add_theme_font_size_override("font_size",30)
-	menu_root.add_child(title)
-
-	var info=Label.new()
-	info.text="STUFE "+str(company_level_1202())+"   •   TEAMS "+str(company_auto_capacity_122())+"   •   STANDORTE "+str(branch_count)+"/5   •   GEWINN "+str(company_income_total)+" €"
-	info.position=Vector2(330,62)
-	info.add_theme_font_size_override("font_size",16)
-	menu_root.add_child(info)
-
-	var passive=Label.new()
-	passive.text="AUTO-BETRIEB +"+str(company_passive_income_122())+" €/Fahrt   •   EIGENE FAHRT +"+str(company_bonus_1202())+" €   •   FIRMENJOBS "+str(company_jobs)
-	passive.position=Vector2(315,92)
-	passive.add_theme_font_size_override("font_size",15)
-	menu_root.add_child(passive)
-
-	var b1=Button.new()
-	b1.text="MITARBEITER  "+str(company_staff)+"/5   •   Fahrer-Team erweitern   •   "+str(company_upgrade_cost_1202(company_staff))+" €"
-	b1.position=Vector2(285,125); b1.size=Vector2(710,46); b1.disabled=company_staff>=5 or money<company_upgrade_cost_1202(company_staff)
-	b1.pressed.connect(func(): buy_company_upgrade_1202("staff")); menu_root.add_child(b1)
-
-	var b2=Button.new()
-	b2.text="FIRMENFLOTTE  "+str(company_fleet)+"/5   •   Firmenfahrzeug kaufen   •   "+str(company_upgrade_cost_1202(company_fleet))+" €"
-	b2.position=Vector2(285,178); b2.size=Vector2(710,46); b2.disabled=company_fleet>=5 or money<company_upgrade_cost_1202(company_fleet)
-	b2.pressed.connect(func(): buy_company_upgrade_1202("fleet")); menu_root.add_child(b2)
-
-	var b3=Button.new()
-	b3.text="DISPOSITION  "+str(company_office)+"/5   •   Ertrag pro Team steigern   •   "+str(company_upgrade_cost_1202(company_office))+" €"
-	b3.position=Vector2(285,231); b3.size=Vector2(710,46); b3.disabled=company_office>=5 or money<company_upgrade_cost_1202(company_office)
-	b3.pressed.connect(func(): buy_company_upgrade_1202("office")); menu_root.add_child(b3)
-
-	var ops=Label.new()
-	ops.text="FUHRPARK-COMMAND   •   "+company_driver_name_123()+" L"+str(driver_level)+"/5   •   Flotte "+str(fleet_condition)+"%   •   Dispo-Rep "+str(dispatch_reputation)+"   •   Großverträge "+str(company_contracts_won)
-	ops.position=Vector2(290,292)
-	ops.add_theme_font_size_override("font_size",14)
-	menu_root.add_child(ops)
-
-	var train=Button.new()
-	train.text="FAHRER-TRAINING   •   "+str(driver_upgrade_cost_123())+" €"
-	train.position=Vector2(285,322); train.size=Vector2(335,44)
-	train.disabled=driver_level>=5 or money<driver_upgrade_cost_123()
-	train.pressed.connect(func(): train_driver_123()); menu_root.add_child(train)
-
-	var repair=Button.new()
-	var repair_cost=(100-fleet_condition)*8
-	repair.text="FLOTTE WARTEN   •   "+str(repair_cost)+" €"
-	repair.position=Vector2(660,322); repair.size=Vector2(335,44)
-	repair.disabled=fleet_condition>=100 or money<repair_cost
-	repair.pressed.connect(func(): repair_company_fleet_123()); menu_root.add_child(repair)
-
-	var dispatch=Button.new()
-	dispatch.text="📋  CONTRACT COMMAND   •   "+dispatch_mode_name_134()+"   •   "+str(company_auto_capacity_122())+" Teams   •   +"+str(company_passive_income_122())+" €/Fahrt"
-	dispatch.position=Vector2(285,380); dispatch.size=Vector2(710,46)
-	dispatch.pressed.connect(func(): show_company_dispatch_133()); menu_root.add_child(dispatch)
-
-	var empire=Label.new()
-	empire.text="IMPERIUM  "+empire_rank_130()+"   •   Stufe "+str(empire_level)+"   •   Umsatz "+str(company_cash_total)+" €   •   Logistik-Rating "+str(logistics_rating)
-	empire.position=Vector2(290,446)
-	empire.add_theme_font_size_override("font_size",14)
-	menu_root.add_child(empire)
-
-	var network=Button.new()
-	var next_city="DEUTSCHLAND KOMPLETT" if branch_count>=5 else branch_city_131(branch_count)+" • "+str(branch_cost_130())+" €"
-	network.text="🇩🇪  DEUTSCHLAND-EMPIRE   •   "+str(branch_count)+"/5 NIEDERLASSUNGEN   •   NÄCHSTER: "+next_city
-	network.position=Vector2(285,478); network.size=Vector2(710,48)
-	network.pressed.connect(func(): show_branch_network_131()); menu_root.add_child(network)
-
-	var footer=Label.new()
-	footer.text="FIRMENUMSATZ "+str(company_cash_total)+" €   •   ELITE-VERTRÄGE "+str(elite_contracts)+"   •   Fahrer-Gehalt "+str(driver_salary)+" €"
-	footer.position=Vector2(320,540)
-	footer.add_theme_font_size_override("font_size",14)
-	menu_root.add_child(footer)
-
-	menu_button("← ZURÜCK",Vector2(420,585),func(): show_main_menu())
+	var shade=ColorRect.new(); shade.color=Color(0.005,0.018,0.035,0.58); shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); menu_root.add_child(shade)
+	empire_panel_140(Vector2(20,20),Vector2(1240,680),0.94)
+	empire_label_140("FIRMENZENTRALE",Vector2(48,38),32,Color.WHITE)
+	empire_label_140("DEIN IMPERIUM WÄCHST  •  "+empire_rank_130(),Vector2(50,78),13,Color(0.24,0.65,1.0))
+	empire_stat_140("KONTOSTAND",str(money)+" €",Vector2(48,112),180)
+	empire_stat_140("FIRMENGEWINN",str(company_income_total)+" €",Vector2(240,112),180)
+	empire_stat_140("FIRMENJOBS",str(company_jobs),Vector2(432,112),160)
+	empire_stat_140("LOGISTIK",str(logistics_rating),Vector2(604,112),150)
+	empire_stat_140("STANDORTE",str(branch_count)+" / 5",Vector2(766,112),150)
+	empire_stat_140("FLOTTE",str(fleet_condition)+"%",Vector2(928,112),150)
+	var left=Vector2(48,205)
+	empire_label_140("MANAGEMENT",left,16,Color(0.58,0.72,0.84))
+	var entries=[
+		["👥  MITARBEITER  "+str(company_staff)+"/5","Team erweitern  •  "+str(company_upgrade_cost_1202(company_staff))+" €","staff"],
+		["🚘  FIRMENFLOTTE  "+str(company_fleet)+"/5","Fahrzeug kaufen  •  "+str(company_upgrade_cost_1202(company_fleet))+" €","fleet"],
+		["📊  DISPOSITION  "+str(company_office)+"/5","Ertrag steigern  •  "+str(company_upgrade_cost_1202(company_office))+" €","office"]
+	]
+	for i in range(entries.size()):
+		var b=Button.new(); b.text=entries[i][0]+"\n     "+entries[i][1]; b.position=Vector2(48,238+i*72); b.size=Vector2(500,60); b.alignment=HORIZONTAL_ALIGNMENT_LEFT; var kind=entries[i][2]; b.pressed.connect(func(): buy_company_upgrade_1202(kind)); menu_root.add_child(b)
+	empire_label_140("OPERATIONS",Vector2(590,205),16,Color(0.58,0.72,0.84))
+	var dispatch=Button.new(); dispatch.text="♛  CONTRACT COMMAND\n     "+dispatch_mode_name_134()+"  •  +"+str(company_passive_income_122())+" €/Fahrt"; dispatch.position=Vector2(590,238); dispatch.size=Vector2(610,72); dispatch.alignment=HORIZONTAL_ALIGNMENT_LEFT; dispatch.pressed.connect(func(): show_company_dispatch_133()); menu_root.add_child(dispatch)
+	var network=Button.new(); var next_city="DEUTSCHLAND KOMPLETT" if branch_count>=5 else branch_city_131(branch_count)+" • "+str(branch_cost_130())+" €"; network.text="⌖  DEUTSCHLAND-EMPIRE  "+str(branch_count)+"/5\n     Nächster Standort: "+next_city; network.position=Vector2(590,322); network.size=Vector2(610,72); network.alignment=HORIZONTAL_ALIGNMENT_LEFT; network.pressed.connect(func(): show_branch_network_131()); menu_root.add_child(network)
+	var train=Button.new(); train.text="FAHRER-TRAINING  •  L"+str(driver_level)+"/5  •  "+str(driver_upgrade_cost_123())+" €"; train.position=Vector2(590,406); train.size=Vector2(295,56); train.disabled=driver_level>=5 or money<driver_upgrade_cost_123(); train.pressed.connect(func(): train_driver_123()); menu_root.add_child(train)
+	var repair=Button.new(); var repair_cost=(100-fleet_condition)*8; repair.text="FLOTTE WARTEN  •  "+str(repair_cost)+" €"; repair.position=Vector2(905,406); repair.size=Vector2(295,56); repair.disabled=fleet_condition>=100 or money<repair_cost; repair.pressed.connect(func(): repair_company_fleet_123()); menu_root.add_child(repair)
+	empire_panel_140(Vector2(48,500),Vector2(1152,110),0.75)
+	empire_label_140("AKTIVE STRATEGIE",Vector2(70,518),12,Color(0.52,0.66,0.78))
+	empire_label_140(dispatch_mode_name_134(),Vector2(70,542),24,Color(1.0,0.72,0.18))
+	empire_label_140("AUTO-BETRIEB  +"+str(company_passive_income_122())+" €/Fahrt     •     EIGENE FAHRT  +"+str(company_bonus_1202())+" €     •     DISPO-REP "+str(dispatch_reputation)+"     •     GROSSVERTRÄGE "+str(company_contracts_won),Vector2(285,548),15,Color(0.78,0.86,0.92))
+	menu_button("←  ZURÜCK",Vector2(470,630),func(): show_main_menu())
 
 
 func show_main_menu():
 	game_state="menu"
-	menu_root.visible=true
-	game_root.visible=false
-	clear_menu()
-
-	var title=Label.new()
-	title.text="AUTO BOSS 13.4"
-	title.position=Vector2(430,70)
-	title.add_theme_font_size_override("font_size",46)
-	menu_root.add_child(title)
-
-	var sub=Label.new()
-	sub.text="Fahrzeugüberführung • Deutschland-Karte • Karriere • Firma • Tuning"
-	sub.position=Vector2(455,130)
-	sub.add_theme_font_size_override("font_size",22)
-	menu_root.add_child(sub)
-
-	menu_button("AUFTRAG STARTEN",Vector2(420,190),func(): show_routes())
-	menu_button("GARAGE / FAHRZEUG",Vector2(420,260),func(): show_garage())
-	menu_button("FIRMENZENTRALE",Vector2(420,330),func(): show_company_hq_1202())
-	menu_button("SPIELSTAND SPEICHERN",Vector2(420,400),func(): save_game())
-
-	var stats=Label.new()
-	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   XP: "+str(career_xp)+"   •   Perfekt: "+str(perfect_jobs)
-	stats.position=Vector2(365,485)
-	stats.add_theme_font_size_override("font_size",20)
-	menu_root.add_child(stats)
-
-	var firm=Label.new()
-	firm.text="Firma: "+company_name()+"  •  Firmenstufe "+str(company_level())+"  •  Nächster Meilenstein: "+str((company_level())*5)+" Jobs"
-	firm.position=Vector2(365,525)
-	firm.add_theme_font_size_override("font_size",17)
-	menu_root.add_child(firm)
+	menu_root.visible=true; game_root.visible=false; clear_menu()
+	var shade=ColorRect.new(); shade.color=Color(0.005,0.018,0.035,0.52); shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); menu_root.add_child(shade)
+	empire_panel_140(Vector2(22,22),Vector2(360,676),0.94)
+	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
+	empire_label_140("14.0  •  EMPIRE UPDATE",Vector2(50,94),16,Color(0.12,0.62,1.0))
+	empire_label_140("FAHRZEUGÜBERFÜHRUNG • KARRIERE • FIRMA",Vector2(50,126),11,Color(0.55,0.68,0.78))
+	var y=170
+	var items=[
+		["🚗  AUFTRAG STARTEN",func(): show_routes()],
+		["▣  GARAGE / FAHRZEUGE",func(): show_garage()],
+		["▥  FIRMENZENTRALE",func(): show_company_hq_1202()],
+		["⌖  DEUTSCHLAND-EMPIRE",func(): show_branch_network_131()],
+		["💾  SPIELSTAND SPEICHERN",func(): save_game()]
+	]
+	for item in items:
+		var b=Button.new(); b.text=item[0]; b.position=Vector2(48,y); b.size=Vector2(305,54); b.alignment=HORIZONTAL_ALIGNMENT_LEFT; b.add_theme_constant_override("icon_max_width",22); b.pressed.connect(item[1]); menu_root.add_child(b); y+=66
+	empire_label_140("DEIN UNTERNEHMEN",Vector2(48,525),13,Color(0.55,0.68,0.78))
+	empire_label_140(empire_rank_130(),Vector2(48,548),20,Color.WHITE)
+	empire_label_140("Nächster Meilenstein: "+str(max(0,5-jobs_completed))+" Jobs",Vector2(48,580),13,Color(0.62,0.72,0.80))
+	var prog=ProgressBar.new(); prog.position=Vector2(48,610); prog.size=Vector2(305,9); prog.value=min(100.0,float(jobs_completed%5)*20.0); prog.show_percentage=false; menu_root.add_child(prog)
+	empire_panel_140(Vector2(410,520),Vector2(845,178),0.88)
+	empire_label_140("FAHRER-PROFIL",Vector2(438,542),13,Color(0.52,0.66,0.78))
+	empire_stat_140("KONTOSTAND",str(money)+" €",Vector2(438,575),180)
+	empire_stat_140("REPUTATION",str(reputation),Vector2(630,575),140)
+	empire_stat_140("JOBS",str(jobs_completed),Vector2(782,575),130)
+	empire_stat_140("FIRMENJOBS",str(company_jobs),Vector2(924,575),145)
+	empire_stat_140("STANDORTE",str(branch_count)+" / 5",Vector2(1081,575),145)
+	empire_label_140("Deutschland wartet. Bau dein Fahrzeug-Imperium auf.",Vector2(438,654),16,Color(0.72,0.82,0.90))
 
 
 func show_routes():
@@ -2160,7 +2154,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 13.4\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 14.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
