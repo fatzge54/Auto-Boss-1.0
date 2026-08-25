@@ -79,7 +79,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 9.0 BIG JUMP systems
+# AUTO BOSS 10.0 BIG JUMP systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -115,6 +115,7 @@ func _ready():
 	create_city_gate_80(-2780.0)
 	create_extra_scenery_52()
 	create_world_upgrade_53()
+	create_visual_upgrade_100()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -220,7 +221,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 9.0"
+	title.text="AUTO BOSS 10.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -600,15 +601,17 @@ func spawn_traffic(z_pos):
 		Color(0.05,0.05,0.06), Color(0.9,0.55,0.08), Color(0.15,0.65,0.25),
 		Color(0.45,0.12,0.55), Color(0.72,0.72,0.68)
 	]
-	var traffic_type=randi()%10
+	var traffic_type=randi()%14
 	if traffic_type<2:
 		create_truck_model(t)
 		t.set_meta("traffic_speed",randf_range(14.0,22.0))
 	elif traffic_type<4:
 		create_van_model_53(t,colors[randi()%colors.size()])
 		t.set_meta("traffic_speed",randf_range(18.0,28.0))
-	elif traffic_type==4:
+	elif traffic_type<7:
 		create_suv_model_53(t,colors[randi()%colors.size()])
+	elif traffic_type==7:
+		create_sport_model_100(t,colors[randi()%colors.size()])
 	else:
 		create_vehicle_model(t,colors[randi()%colors.size()])
 	add_ai_lights_53(t)
@@ -619,10 +622,10 @@ func spawn_traffic(z_pos):
 func update_traffic(delta):
 	traffic_timer+=delta
 
-	var spawn_delay=max(1.65,2.75-float(company_level())*0.08)
+	var spawn_delay=max(1.30,2.45-float(company_level())*0.08)
 	if traffic_timer>spawn_delay:
 		traffic_timer=0
-		var traffic_cap=min(22,14+company_level())
+		var traffic_cap=min(28,17+company_level())
 		if traffic.size()<traffic_cap:
 			spawn_traffic(car.position.z-randf_range(200.0,285.0))
 
@@ -1681,7 +1684,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 9.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 10.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -1745,3 +1748,53 @@ func material(color_value):
 	var m=StandardMaterial3D.new()
 	m.albedo_color=color_value
 	return m
+
+
+# AUTO BOSS 10.0 – Grafik-, Autobahn- und Traffic-Upgrade
+func create_visual_upgrade_100():
+	# Mittelstreifen-Reflektoren und Asphaltflicken geben der Straße mehr Tiefe.
+	for z in range(-30,-2980,-55):
+		station_box(self,Vector3(0.16,0.08,0.42),Vector3(-3.0,0.19,z),Color(0.92,0.92,0.72))
+		station_box(self,Vector3(0.16,0.08,0.42),Vector3(3.0,0.19,z-24),Color(0.92,0.92,0.72))
+	for z in range(-160,-2900,-310):
+		station_box(self,Vector3(3.2,0.018,8.0),Vector3(-2.0,0.12,z),Color(0.085,0.09,0.10))
+	# Lärmschutzwände in einigen Abschnitten.
+	for z0 in [-520.0,-1560.0,-2460.0]:
+		create_noise_barrier_100(z0,1.0)
+	# Zusätzliche Brücken und moderne Schilder sorgen für erkennbare Streckenabschnitte.
+	create_overpass(-1180.0)
+	create_overpass(-2820.0)
+	create_motorway_sign(Vector3(0,0,-1050),"A81  Heilbronn   Frankfurt")
+	create_motorway_sign(Vector3(0,0,-2310),"A5  Frankfurt   Köln")
+
+func create_noise_barrier_100(z_start:float, side:float):
+	var root=Node3D.new()
+	root.position=Vector3(0,0,z_start)
+	add_child(root)
+	for i in range(7):
+		var z=-float(i)*14.0
+		station_box(root,Vector3(0.20,3.4,13.2),Vector3(side*11.0,1.7,z),Color(0.30,0.48,0.55))
+		station_box(root,Vector3(0.12,3.8,0.12),Vector3(side*10.9,1.9,z-6.5),Color(0.65,0.68,0.70))
+
+func create_sport_model_100(parent,color_value):
+	# Flacheres KI-Sportcoupé als zusätzliche Fahrzeugklasse.
+	station_box(parent,Vector3(2.05,0.58,4.35),Vector3(0,0.68,0),color_value)
+	station_box(parent,Vector3(1.62,0.55,1.75),Vector3(0,1.22,0.10),Color(0.08,0.18,0.27))
+	station_box(parent,Vector3(1.92,0.18,0.72),Vector3(0,0.92,-1.82),color_value.lightened(0.08))
+	station_box(parent,Vector3(1.82,0.12,0.18),Vector3(0,0.52,2.20),Color(0.04,0.04,0.05))
+	for wx in [-1.02,1.02]:
+		for wz in [-1.35,1.35]:
+			var wheel=MeshInstance3D.new()
+			var wm=CylinderMesh.new()
+			wm.top_radius=0.40
+			wm.bottom_radius=0.40
+			wm.height=0.30
+			wheel.mesh=wm
+			wheel.position=Vector3(wx,0.38,wz)
+			wheel.rotation_degrees=Vector3(0,0,90)
+			wheel.material_override=material(Color(0.015,0.015,0.018))
+			parent.add_child(wheel)
+	light_box(parent,Vector3(-0.66,0.72,-2.18),Color(1.0,0.94,0.72))
+	light_box(parent,Vector3(0.66,0.72,-2.18),Color(1.0,0.94,0.72))
+	light_box(parent,Vector3(-0.70,0.70,2.18),Color.RED)
+	light_box(parent,Vector3(0.70,0.70,2.18),Color.RED)
