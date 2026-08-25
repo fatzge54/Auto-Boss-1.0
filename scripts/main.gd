@@ -73,7 +73,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 6.0.2 systems
+# AUTO BOSS 6.1 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -84,6 +84,7 @@ var fine_label
 var headlights_on=true
 var police_heat=0
 var clean_mission_bonus=0
+var streak_bonus=0
 
 
 func _ready():
@@ -160,6 +161,18 @@ func menu_button(text_value,pos,callback):
 	menu_root.add_child(b)
 
 
+
+func career_rank_name():
+	if jobs_completed>=30:
+		return "AUTO-BOSS"
+	elif jobs_completed>=20:
+		return "PROFI"
+	elif jobs_completed>=12:
+		return "DISPONENT"
+	elif jobs_completed>=6:
+		return "FAHRER"
+	return "NEULING"
+
 func show_main_menu():
 	game_state="menu"
 	menu_root.visible=true
@@ -167,7 +180,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 6.0.2"
+	title.text="AUTO BOSS 6.1"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -183,7 +196,7 @@ func show_main_menu():
 	menu_button("SPIELSTAND SPEICHERN",Vector2(420,380),func(): save_game())
 
 	var stats=Label.new()
-	stats.text="Geld: "+str(money)+" €     Reputation: "+str(reputation)+"     Level: "+str(career_level)+"     XP: "+str(career_xp)+"     Jobs: "+str(jobs_completed)
+	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   Safe-Serie: "+str(safe_driving_streak)
 	stats.position=Vector2(430,490)
 	stats.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(stats)
@@ -266,6 +279,7 @@ func start_mission():
 	event_text="Freie Fahrt"
 	police_heat=0
 	clean_mission_bonus=0
+	streak_bonus=0
 
 	if settlement_panel!=null:
 		settlement_panel.visible=false
@@ -366,7 +380,10 @@ func finish_mission():
 	)
 
 	clean_mission_bonus=50 if fines_total==0 and damage<10 else 0
-	money+=reward+clean_mission_bonus
+	streak_bonus=0
+	if fines_total==0 and damage<10:
+		streak_bonus=min(safe_driving_streak*25,125)
+	money+=reward+clean_mission_bonus+streak_bonus
 	jobs_completed+=1
 	total_fines_paid+=fines_total
 	if damage<10 and fines_total==0:
@@ -411,13 +428,14 @@ func show_settlement(
 		+routes[selected_route]["name"]
 	)
 
-	var real_profit=reward+clean_mission_bonus-service_costs-fines_total
+	var real_profit=reward+clean_mission_bonus+streak_bonus-service_costs-fines_total
 
 	settlement_details.text=(
 		"Grundvergütung:        "+str(base_reward)+" €\n"
 		+"Sauberkeitsbonus:     +"+str(clean_bonus)+" €\n"
 		+"Tankbonus:            +"+str(fuel_bonus)+" €\n"
 		+"Sicherheitsprämie:    +"+str(clean_mission_bonus)+" €\n"
+		+"Serienbonus:           +"+str(streak_bonus)+" €\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
 		+"Bußgelder:             -"+str(fines_total)+" €\n"
@@ -425,7 +443,8 @@ func show_settlement(
 		+"Auszahlung:            "+str(reward)+" €\n"
 		+"Netto-Ergebnis Fahrt:  "+str(real_profit)+" €\n"
 		+"Kontostand:            "+str(money)+" €\n"
-		+"Reputation:            "+str(reputation)
+		+"Reputation:            "+str(reputation)+"\n"
+		+"Karriere-Rang:         "+career_rank_name()
 	)
 
 
@@ -920,7 +939,7 @@ func create_rest_area_52(z_pos):
 
 
 
-# AUTO BOSS 6.0.2 – WORLD UPGRADE
+# AUTO BOSS 6.1 – WORLD UPGRADE
 func create_world_upgrade_53():
 	# Leitpfosten dichter gesetzt, damit Geschwindigkeit und Entfernung besser lesbar sind.
 	for z in range(-45,-2950,-45):
@@ -1523,7 +1542,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 5.2\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 6.1\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
