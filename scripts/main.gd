@@ -120,6 +120,10 @@ var company_cash_total=0
 
 var company_income_total=0
 var company_passive_last=0
+# AUTO BOSS 13.4 CONTRACT COMMAND
+var dispatch_mode=0 # 0 BALANCE, 1 SICHER, 2 PROFIT
+var dispatch_route=0
+var dispatch_streak=0
 var navigation_label
 var destination_bonus=0
 var route_stage="AUTOBAHN"
@@ -191,6 +195,9 @@ func save_game():
 	cfg.set_value("player","elite_contracts",elite_contracts)
 	cfg.set_value("player","company_cash_total",company_cash_total)
 	cfg.set_value("player","company_income_total",company_income_total)
+	cfg.set_value("player","dispatch_mode",dispatch_mode)
+	cfg.set_value("player","dispatch_route",dispatch_route)
+	cfg.set_value("player","dispatch_streak",dispatch_streak)
 	cfg.save("user://autoboss.cfg")
 
 
@@ -223,6 +230,9 @@ func load_save():
 	elite_contracts=int(cfg.get_value("player","elite_contracts",0))
 	company_cash_total=int(cfg.get_value("player","company_cash_total",0))
 	company_income_total=int(cfg.get_value("player","company_income_total",0))
+	dispatch_mode=int(cfg.get_value("player","dispatch_mode",0))
+	dispatch_route=int(cfg.get_value("player","dispatch_route",0))
+	dispatch_streak=int(cfg.get_value("player","dispatch_streak",0))
 	career_level=1+int(jobs_completed/3)
 
 
@@ -272,15 +282,44 @@ func company_name():
 func company_auto_capacity_122():
 	return min(company_staff,company_fleet)
 
+func dispatch_mode_name_134():
+	if dispatch_mode==1:
+		return "SICHERHEIT"
+	elif dispatch_mode==2:
+		return "MAX PROFIT"
+	return "BALANCE"
+
+func dispatch_mode_factor_134():
+	if dispatch_mode==1:
+		return 0.90
+	elif dispatch_mode==2:
+		return 1.22
+	return 1.0
+
+func dispatch_route_factor_134():
+	# Gewählte Schwerpunkt-Route gibt einen kleinen Managementbonus.
+	return 1.0+float(clamp(dispatch_route,0,4))*0.025
+
 func company_passive_income_122():
 	var teams=company_auto_capacity_122()
 	if teams<=0:
 		return 0
-	# 13.2: Jede aktive Niederlassung trägt zum Auto-Betrieb bei.
 	var network_total=0
 	for i in range(branch_count):
 		network_total+=branch_income_131(i)
-	return int(round(network_total*(1.0+float(company_office)*0.06)))
+	var condition_factor=0.75+float(fleet_condition)*0.0025
+	var streak_factor=1.0+min(dispatch_streak,10)*0.015
+	return int(round(network_total*(1.0+float(company_office)*0.06)*dispatch_mode_factor_134()*dispatch_route_factor_134()*condition_factor*streak_factor))
+
+func cycle_dispatch_mode_134():
+	dispatch_mode=(dispatch_mode+1)%3
+	save_game()
+	show_company_dispatch_133()
+
+func set_dispatch_route_134(index):
+	dispatch_route=clamp(index,0,4)
+	save_game()
+	show_company_dispatch_133()
 
 func run_company_jobs_122():
 	var teams=company_auto_capacity_122()
@@ -398,7 +437,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 13.3 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 13.4 • DEUTSCHLAND EMPIRE"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -443,17 +482,23 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 13.3 • DISPOSITION & AUTO-AUFTRÄGE"
-	title.position=Vector2(300,30)
+	title.text="AUTO BOSS 13.4 • CONTRACT COMMAND"
+	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
 
 	var teams=company_auto_capacity_122()
 	var header=Label.new()
-	header.text="AKTIVE TEAMS: "+str(teams)+"   •   STANDORTE: "+str(branch_count)+"/5   •   NÄCHSTER AUTO-LAUF: nach deiner nächsten Lieferung"
-	header.position=Vector2(280,78)
+	header.text="TEAMS "+str(teams)+"   •   STANDORTE "+str(branch_count)+"/5   •   SERIE "+str(dispatch_streak)+"   •   PROGNOSE +"+str(company_passive_income_122())+" €/Fahrt"
+	header.position=Vector2(315,67)
 	header.add_theme_font_size_override("font_size",16)
 	menu_root.add_child(header)
+
+	var mode=Button.new()
+	mode.text="STRATEGIE:  "+dispatch_mode_name_134()+"   •   tippen zum Wechseln   •   Faktor x"+str(snapped(dispatch_mode_factor_134(),0.01))
+	mode.position=Vector2(285,100); mode.size=Vector2(710,45)
+	mode.pressed.connect(func(): cycle_dispatch_mode_134())
+	menu_root.add_child(mode)
 
 	var routes_auto=[
 		["Stuttgart → Köln",205],
@@ -466,30 +511,39 @@ func show_company_dispatch_133():
 		var card=Button.new()
 		var unlocked=i<branch_count
 		var projected=branch_income_131(i) if unlocked else 0
-		if unlocked and teams>0:
-			card.text="✓ TEAM "+str(min(i+1,teams))+"   •   "+str(routes_auto[i][0])+"   •   "+str(routes_auto[i][1])+" km   •   Prognose +"+str(projected)+" €"
-		elif unlocked:
-			card.text="⚠ "+str(routes_auto[i][0])+"   •   Kein Fahrer/Fahrzeug-Team verfügbar"
+		if unlocked:
+			var marker="★ " if i==dispatch_route else "   "
+			var team_text="Team bereit" if teams>0 else "Kein Team"
+			card.text=marker+str(routes_auto[i][0])+"   •   "+str(routes_auto[i][1])+" km   •   "+team_text+"   •   Basis +"+str(projected)+" €"
+			card.disabled=false
+			card.pressed.connect(func(idx=i): set_dispatch_route_134(idx))
 		else:
 			card.text="🔒 "+str(routes_auto[i][0])+"   •   Niederlassung zuerst eröffnen"
-		card.position=Vector2(245,125+i*70)
-		card.size=Vector2(790,54)
-		card.disabled=true
-		card.add_theme_font_size_override("font_size",16)
+			card.disabled=true
+		card.position=Vector2(245,158+i*58)
+		card.size=Vector2(790,46)
+		card.add_theme_font_size_override("font_size",15)
 		menu_root.add_child(card)
 
+	var hint=Label.new()
+	var risk="weniger Ertrag, stabilere Flotte" if dispatch_mode==1 else ("mehr Ertrag, höhere Flottenbelastung" if dispatch_mode==2 else "ausgewogener Betrieb")
+	hint.text="SCHWERPUNKT: "+str(routes_auto[dispatch_route][0])+"   •   "+risk+"   •   Flotte "+str(fleet_condition)+"%"
+	hint.position=Vector2(300,465)
+	hint.add_theme_font_size_override("font_size",15)
+	menu_root.add_child(hint)
+
 	var summary=Label.new()
-	summary.text="AUTO-ERTRAG PRO EIGENER FAHRT: +"+str(company_passive_income_122())+" €   •   FIRMENJOBS: "+str(company_jobs)+"   •   LOGISTIK-RATING: "+str(logistics_rating)
-	summary.position=Vector2(270,500)
-	summary.add_theme_font_size_override("font_size",16)
+	summary.text="FIRMENJOBS "+str(company_jobs)+"   •   DISPO-REP "+str(dispatch_reputation)+"   •   GROSSVERTRÄGE "+str(company_contracts_won)+"   •   LOGISTIK "+str(logistics_rating)
+	summary.position=Vector2(300,500)
+	summary.add_theme_font_size_override("font_size",15)
 	menu_root.add_child(summary)
 
-	menu_button("← FIRMENZENTRALE",Vector2(420,585),func(): show_company_hq_1202())
+	menu_button("← FIRMENZENTRALE",Vector2(420,565),func(): show_company_hq_1202())
 
 func show_company_hq_1202():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 13.3 • FIRMENZENTRALE"
+	title.text="AUTO BOSS 13.4 • FIRMENZENTRALE"
 	title.position=Vector2(355,20)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -541,7 +595,7 @@ func show_company_hq_1202():
 	repair.pressed.connect(func(): repair_company_fleet_123()); menu_root.add_child(repair)
 
 	var dispatch=Button.new()
-	dispatch.text="📋  DISPOSITION / AUTO-AUFTRÄGE   •   "+str(company_auto_capacity_122())+" Teams   •   +"+str(company_passive_income_122())+" €/Fahrt"
+	dispatch.text="📋  CONTRACT COMMAND   •   "+dispatch_mode_name_134()+"   •   "+str(company_auto_capacity_122())+" Teams   •   +"+str(company_passive_income_122())+" €/Fahrt"
 	dispatch.position=Vector2(285,380); dispatch.size=Vector2(710,46)
 	dispatch.pressed.connect(func(): show_company_dispatch_133()); menu_root.add_child(dispatch)
 
@@ -573,7 +627,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 13.3"
+	title.text="AUTO BOSS 13.4"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -859,7 +913,9 @@ func finish_mission():
 		company_bonus_last+=max(0,driver_income-salary_cost)
 		company_jobs+=active_teams
 		dispatch_reputation+=active_teams
-		fleet_condition=max(0,fleet_condition-active_teams*2)
+		var wear=active_teams*(1 if dispatch_mode==1 else (4 if dispatch_mode==2 else 2))
+		fleet_condition=max(0,fleet_condition-wear)
+		dispatch_streak+=1
 		var empire_bonus=empire_contract_bonus_130()
 		company_bonus_last+=empire_bonus
 		logistics_rating+=active_teams*branch_count
@@ -939,7 +995,7 @@ func show_settlement(
 		+"Disziplinbonus:        +"+str(discipline_bonus)+" €\n"
 		+"Langstreckenbonus:     +"+str(long_distance_bonus)+" €\n"
 		+"Firmenbonus:           +"+str(company_bonus_last)+" €\n"		+"Firmenmanagement:      Fahrer L"+str(driver_level)+" • Flotte "+str(fleet_condition)+"%\n"		+"Imperium:              "+empire_rank_130()+" • "+str(branch_count)+" Standorte\n"
-		+"Firmen-Autoaufträge:   +"+str(company_passive_last)+" €\n"
+		+"Firmen-Autoaufträge:   +"+str(company_passive_last)+" €  ("+dispatch_mode_name_134()+")\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
 		+"Bußgelder:             -"+str(fines_total)+" €\n"
@@ -2104,7 +2160,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 13.3\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 13.4\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
