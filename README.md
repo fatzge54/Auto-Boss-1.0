@@ -1,11 +1,12 @@
-# AUTO BOSS 4.0
+# AUTO BOSS 5.0
 
-Fahrzeugüberführungs-Spiel auf Godot 4.7.
+Karriere- und Wirtschaftsupdate auf Basis des getesteten 4.0/3.0-Projekts.
 
-## Neu in 4.0
-- Dynamische Tempolimits und Straßenereignisse
-- Blitzer und Bußgelder mit Abrechnung
-- Fahrzeugklassen mit eigener Beschleunigung, Bremsleistung und Verbrauch
-- Bestehende 3.0-Systeme: Tag/Nacht, Regen, Verkehr, Tankstellen, Werkstatt, Karriere und Auftragsabrechnung
+Neu:
+- Bußgelder werden im Netto-Ergebnis der Fahrt berücksichtigt
+- Karriere-XP und sichere Fahrten in Serie
+- kumulierte Bußgelder werden gespeichert
+- bestehende Systeme für Wetter, Tag/Nacht, Verkehr, Blitzer, Tank, Werkstatt,
+  Schaden, Aufträge, Garage, Pause und Abrechnung bleiben erhalten
 
-Die bestehende GitHub-Android-Build-Konfiguration bleibt enthalten.
+Den letzten stabilen Build als Backup behalten.
