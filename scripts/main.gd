@@ -145,6 +145,7 @@ func _ready():
 	create_visual_upgrade_110()
 	create_road_graphics_150()
 	create_visual_revolution_160()
+	create_graphics_overhaul_170()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -484,7 +485,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 16.0 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 17.0 • DEUTSCHLAND EMPIRE"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -529,7 +530,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 16.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 17.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -628,7 +629,7 @@ func show_main_menu():
 	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("16.0  •  VISUAL REVOLUTION",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("17.0  •  GRAPHICS OVERHAUL",Vector2(50,94),16,Color(0.16,0.70,1.0))
 	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
@@ -716,7 +717,7 @@ func show_garage():
 	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 16.0 • PERFORMANCE STUDIO"
+	title.text="GARAGE 17.0 • PERFORMANCE STUDIO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -2176,7 +2177,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 16.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 17.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2424,3 +2425,105 @@ func create_tree_cluster_150(pos:Vector3):
 			crown.position=Vector3(randf_range(-0.35,0.35),2.7+0.55*j,randf_range(-0.25,0.25))
 			crown.material_override=material(Color(0.045+0.018*j,0.30+randf_range(0.0,0.10),0.07))
 			root.add_child(crown)
+
+
+# AUTO BOSS 17.0 – GRAPHICS OVERHAUL
+# Rein visueller Layer: Gameplay, Karriere und Savegame bleiben unverändert.
+func create_graphics_overhaul_170():
+	# Moderner Himmel mit echter Himmelskuppel statt flacher Hintergrundfarbe.
+	if world_env != null:
+		var sky=Sky.new()
+		var sky_mat=ProceduralSkyMaterial.new()
+		sky_mat.sky_top_color=Color(0.055,0.20,0.40)
+		sky_mat.sky_horizon_color=Color(0.52,0.76,0.94)
+		sky_mat.ground_bottom_color=Color(0.08,0.11,0.13)
+		sky_mat.ground_horizon_color=Color(0.42,0.55,0.52)
+		sky_mat.sun_angle_max=18.0
+		sky_mat.sun_curve=0.08
+		sky.sky_material=sky_mat
+		world_env.sky=sky
+		world_env.background_mode=Environment.BG_SKY
+		world_env.ambient_light_source=Environment.AMBIENT_SOURCE_SKY
+		world_env.ambient_light_energy=0.82
+		world_env.reflected_light_source=Environment.REFLECTION_SOURCE_SKY
+		world_env.fog_enabled=true
+		world_env.fog_light_color=Color(0.63,0.76,0.84)
+		world_env.fog_density=0.0017
+		world_env.fog_sky_affect=0.34
+
+	# Asphalt: feine Reparaturstreifen, Fugen und optische Fahrspuren.
+	for z in range(-80,-2960,-105):
+		var shade=Color(0.075,0.080,0.087) if (abs(z/105)%2)==0 else Color(0.12,0.125,0.13)
+		station_box(self,Vector3(5.15,0.010,0.13),Vector3(-3.1,0.205,z),shade)
+		station_box(self,Vector3(4.75,0.010,0.11),Vector3(3.0,0.205,z-34),shade)
+	for z in range(-45,-2980,-42):
+		station_box(self,Vector3(0.045,0.012,9.0),Vector3(-5.4,0.208,z),Color(0.075,0.078,0.082))
+		station_box(self,Vector3(0.045,0.012,8.0),Vector3(5.2,0.208,z-19),Color(0.075,0.078,0.082))
+
+	# Deutsche Leitpfosten – dichter Rhythmus, schwarze Reflektorflächen.
+	for z in range(-35,-2980,-55):
+		create_delineator_170(Vector3(-9.72,0,z),false)
+		create_delineator_170(Vector3(9.72,0,z-27),true)
+
+	# Lärmschutzwände / Leitplanken sorgen für deutlich mehr Autobahn-Charakter.
+	for z in [-610.0,-650.0,-690.0,-730.0,-1510.0,-1550.0,-1590.0,-1630.0]:
+		create_noise_barrier_170(Vector3(11.4,0,z))
+	for z in [-1030.0,-1070.0,-1110.0,-2290.0,-2330.0,-2370.0]:
+		create_noise_barrier_170(Vector3(-11.4,0,z))
+
+	# Fernwald und kleine Baumreihen füllen die bisher leeren grünen Flächen.
+	for z in range(-140,-2900,-230):
+		create_forest_strip_170(Vector3(-31-randf_range(0,8),0,z))
+		create_forest_strip_170(Vector3(31+randf_range(0,8),0,z-100))
+
+	# Wiedererkennbare Autobahn-Szenen: Baustelle, Windräder und Logistikpark.
+	create_construction_zone_170(-1180.0)
+	create_wind_turbine_170(Vector3(-43,0,-820))
+	create_wind_turbine_170(Vector3(-51,0,-930))
+	create_wind_turbine_170(Vector3(47,0,-2020))
+	create_logistics_park_170(Vector3(31,0,-2460))
+
+func create_delineator_170(pos:Vector3,right_side:bool):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	station_box(root,Vector3(0.20,1.10,0.16),Vector3(0,0.55,0),Color(0.93,0.94,0.92))
+	station_box(root,Vector3(0.23,0.27,0.18),Vector3(0,0.79,-0.01),Color(0.035,0.04,0.045))
+	var rx=0.055 if right_side else -0.055
+	station_box(root,Vector3(0.07,0.09,0.19),Vector3(rx,0.81,-0.02),Color(0.96,0.96,0.90))
+
+func create_noise_barrier_170(pos:Vector3):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	station_box(root,Vector3(0.14,3.0,39.0),Vector3(0,1.55,0),Color(0.30,0.49,0.56))
+	station_box(root,Vector3(0.17,0.10,39.2),Vector3(0,3.05,0),Color(0.68,0.73,0.75))
+	for zz in [-18.0,-9.0,0.0,9.0,18.0]:
+		station_box(root,Vector3(0.22,3.25,0.16),Vector3(0,1.62,zz),Color(0.55,0.59,0.61))
+
+func create_forest_strip_170(pos:Vector3):
+	for i in range(7):
+		var root=Node3D.new()
+		root.position=pos+Vector3(randf_range(-10,10),0,randf_range(-18,18))
+		add_child(root)
+		var trunk=MeshInstance3D.new(); var tm=CylinderMesh.new(); tm.top_radius=0.16; tm.bottom_radius=0.25; tm.height=3.4; trunk.mesh=tm; trunk.position.y=1.7; trunk.material_override=material(Color(0.19,0.095,0.035)); root.add_child(trunk)
+		var crown=MeshInstance3D.new(); var cm=SphereMesh.new(); cm.radius=1.0; cm.height=2.0; crown.mesh=cm; crown.scale=Vector3(randf_range(1.3,1.9),randf_range(1.6,2.2),randf_range(1.3,1.9)); crown.position.y=4.0; crown.material_override=material(Color(randf_range(0.035,0.075),randf_range(0.20,0.34),randf_range(0.045,0.085))); root.add_child(crown)
+
+func create_construction_zone_170(z_pos:float):
+	var root=Node3D.new(); root.position=Vector3(0,0,z_pos); add_child(root)
+	for zz in range(-70,71,10):
+		station_box(root,Vector3(0.32,0.75,0.32),Vector3(7.25,0.38,float(zz)),Color(1.0,0.48,0.03))
+		station_box(root,Vector3(0.36,0.14,0.36),Vector3(7.25,0.78,float(zz)),Color(0.95,0.95,0.90))
+	station_box(root,Vector3(4.8,0.08,135),Vector3(9.9,0.19,0),Color(0.16,0.17,0.18))
+	var sign=Label3D.new(); sign.text="BAUSTELLE  •  80"; sign.font_size=42; sign.outline_size=7; sign.position=Vector3(8.4,3.2,58); root.add_child(sign)
+
+func create_wind_turbine_170(pos:Vector3):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	var mast=MeshInstance3D.new(); var mm=CylinderMesh.new(); mm.top_radius=0.22; mm.bottom_radius=0.48; mm.height=14.0; mast.mesh=mm; mast.position.y=7.0; mast.material_override=material(Color(0.78,0.81,0.82)); root.add_child(mast)
+	station_box(root,Vector3(1.3,0.65,0.65),Vector3(0,14.1,0),Color(0.82,0.84,0.84))
+	for angle in [0.0,120.0,240.0]:
+		var blade=MeshInstance3D.new(); var bm=BoxMesh.new(); bm.size=Vector3(0.18,6.0,0.12); blade.mesh=bm; blade.position=Vector3(0,14.1,0); blade.rotation_degrees.z=angle; blade.material_override=material(Color(0.88,0.89,0.88)); root.add_child(blade)
+
+func create_logistics_park_170(pos:Vector3):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	station_box(root,Vector3(22,5.5,18),Vector3(0,2.75,0),Color(0.64,0.68,0.70))
+	station_box(root,Vector3(22.4,0.30,18.4),Vector3(0,5.62,0),Color(0.16,0.19,0.22))
+	for x in [-7.5,-2.5,2.5,7.5]:
+		station_box(root,Vector3(3.3,2.5,0.16),Vector3(x,1.55,-9.08),Color(0.10,0.16,0.20))
+	var label=Label3D.new(); label.text="AUTO BOSS LOGISTICS"; label.font_size=32; label.outline_size=5; label.position=Vector3(0,4.3,-9.18); root.add_child(label)
