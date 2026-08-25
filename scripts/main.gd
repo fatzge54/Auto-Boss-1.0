@@ -20,15 +20,17 @@ var traffic=[]
 var traffic_timer=0.0
 
 var routes=[
-	{"name":"Stuttgart → Köln","distance":366.0,"reward":450,"rep":15},
-	{"name":"Stuttgart → München","distance":220.0,"reward":280,"rep":15},
-	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":260,"rep":15},
-	{"name":"Stuttgart → Hamburg","distance":630.0,"reward":720,"rep":18},
-	{"name":"Stuttgart → Nürnberg","distance":210.0,"reward":310,"rep":16},
-	{"name":"Stuttgart → Düsseldorf","distance":410.0,"reward":540,"rep":20},
-	{"name":"Stuttgart → Berlin","distance":635.0,"reward":820,"rep":24}
+	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":260,"rep":15,"class":"STANDARD"},
+	{"name":"Stuttgart → München","distance":220.0,"reward":300,"rep":15,"class":"STANDARD"},
+	{"name":"Stuttgart → Nürnberg","distance":210.0,"reward":330,"rep":16,"class":"STANDARD"},
+	{"name":"Stuttgart → Köln","distance":366.0,"reward":470,"rep":15,"class":"STANDARD"},
+	{"name":"Stuttgart → Düsseldorf","distance":410.0,"reward":570,"rep":20,"class":"EXPRESS"},
+	{"name":"Stuttgart → Leipzig","distance":485.0,"reward":660,"rep":21,"class":"EXPRESS"},
+	{"name":"Stuttgart → Hamburg","distance":630.0,"reward":760,"rep":18,"class":"LANGSTRECKE"},
+	{"name":"Stuttgart → Bremen","distance":635.0,"reward":790,"rep":22,"class":"LANGSTRECKE"},
+	{"name":"Stuttgart → Berlin","distance":635.0,"reward":860,"rep":24,"class":"PREMIUM"},
+	{"name":"Stuttgart → Rostock","distance":800.0,"reward":1080,"rep":28,"class":"PREMIUM"}
 ]
-
 var cars=[
 	{"name":"Transporter","max_speed":42.0,"accel":14.0,"brake":30.0,"fuel_factor":0.80,"color":Color(0.08,0.22,0.55)},
 	{"name":"Limousine","max_speed":48.0,"accel":18.0,"brake":34.0,"fuel_factor":1.00,"color":Color(0.08,0.08,0.10)},
@@ -73,7 +75,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 6.1 systems
+# AUTO BOSS 6.5 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -85,6 +87,9 @@ var headlights_on=true
 var police_heat=0
 var clean_mission_bonus=0
 var streak_bonus=0
+var discipline_bonus=0
+var long_distance_bonus=0
+var mission_xp_earned=0
 
 
 func _ready():
@@ -163,15 +168,20 @@ func menu_button(text_value,pos,callback):
 
 
 func career_rank_name():
-	if jobs_completed>=30:
+	if jobs_completed>=40:
 		return "AUTO-BOSS"
-	elif jobs_completed>=20:
+	elif jobs_completed>=28:
+		return "EXPERTE"
+	elif jobs_completed>=18:
 		return "PROFI"
-	elif jobs_completed>=12:
+	elif jobs_completed>=10:
 		return "DISPONENT"
-	elif jobs_completed>=6:
+	elif jobs_completed>=4:
 		return "FAHRER"
 	return "NEULING"
+
+func contract_class_name():
+	return str(routes[selected_route].get("class","STANDARD"))
 
 func show_main_menu():
 	game_state="menu"
@@ -180,13 +190,13 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 6.1"
+	title.text="AUTO BOSS 6.5"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
 
 	var sub=Label.new()
-	sub.text="Fahrzeugüberführung • Karriere"
+	sub.text="Fahrzeugüberführung • Karriere • Auftragsklassen"
 	sub.position=Vector2(455,130)
 	sub.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(sub)
@@ -196,7 +206,7 @@ func show_main_menu():
 	menu_button("SPIELSTAND SPEICHERN",Vector2(420,380),func(): save_game())
 
 	var stats=Label.new()
-	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   Safe-Serie: "+str(safe_driving_streak)
+	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   XP: "+str(career_xp)+"   •   Safe-Serie: "+str(safe_driving_streak)
 	stats.position=Vector2(430,490)
 	stats.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(stats)
@@ -216,10 +226,10 @@ func show_routes():
 		var b=Button.new()
 		var needed=int(r.get("rep",15))
 		var locked=reputation<needed
-		b.text=("🔒 " if locked else "")+r["name"]+"  •  "+str(int(r["distance"]))+" km  •  "+str(r["reward"])+" €  •  Rep "+str(needed)
-		b.position=Vector2(285,90+i*58)
-		b.size=Vector2(710,48)
-		b.add_theme_font_size_override("font_size",17)
+		b.text=("🔒 " if locked else "")+"["+str(r.get("class","STANDARD"))+"]  "+r["name"]+"  •  "+str(int(r["distance"]))+" km  •  "+str(r["reward"])+" €  •  Rep "+str(needed)
+		b.position=Vector2(245,82+i*46)
+		b.size=Vector2(790,40)
+		b.add_theme_font_size_override("font_size",15)
 		b.disabled=locked
 		var idx=i
 		b.pressed.connect(func():
@@ -228,7 +238,7 @@ func show_routes():
 		)
 		menu_root.add_child(b)
 
-	menu_button("← ZURÜCK",Vector2(420,515),func(): show_main_menu())
+	menu_button("← ZURÜCK",Vector2(420,560),func(): show_main_menu())
 
 func show_garage():
 	clear_menu()
@@ -280,6 +290,9 @@ func start_mission():
 	police_heat=0
 	clean_mission_bonus=0
 	streak_bonus=0
+	discipline_bonus=0
+	long_distance_bonus=0
+	mission_xp_earned=0
 
 	if settlement_panel!=null:
 		settlement_panel.visible=false
@@ -381,17 +394,24 @@ func finish_mission():
 
 	clean_mission_bonus=50 if fines_total==0 and damage<10 else 0
 	streak_bonus=0
+	discipline_bonus=100 if fines_total==0 and damage<=5 else 0
+	long_distance_bonus=75 if float(routes[selected_route]["distance"])>=400.0 else 0
 	if fines_total==0 and damage<10:
 		streak_bonus=min(safe_driving_streak*25,125)
-	money+=reward+clean_mission_bonus+streak_bonus
+	money+=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus
 	jobs_completed+=1
 	total_fines_paid+=fines_total
+	mission_xp_earned=10
 	if damage<10 and fines_total==0:
 		safe_driving_streak+=1
-		career_xp+=25
+		mission_xp_earned+=25
 	else:
 		safe_driving_streak=0
-	career_xp+=10
+	if float(routes[selected_route]["distance"])>=400.0:
+		mission_xp_earned+=10
+	if str(routes[selected_route].get("class","STANDARD"))=="PREMIUM":
+		mission_xp_earned+=15
+	career_xp+=mission_xp_earned
 	career_level=1+int(jobs_completed/3)
 
 	if damage<25:
@@ -428,7 +448,7 @@ func show_settlement(
 		+routes[selected_route]["name"]
 	)
 
-	var real_profit=reward+clean_mission_bonus+streak_bonus-service_costs-fines_total
+	var real_profit=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus-service_costs-fines_total
 
 	settlement_details.text=(
 		"Grundvergütung:        "+str(base_reward)+" €\n"
@@ -436,6 +456,8 @@ func show_settlement(
 		+"Tankbonus:            +"+str(fuel_bonus)+" €\n"
 		+"Sicherheitsprämie:    +"+str(clean_mission_bonus)+" €\n"
 		+"Serienbonus:           +"+str(streak_bonus)+" €\n"
+		+"Disziplinbonus:        +"+str(discipline_bonus)+" €\n"
+		+"Langstreckenbonus:     +"+str(long_distance_bonus)+" €\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
 		+"Bußgelder:             -"+str(fines_total)+" €\n"
@@ -444,7 +466,9 @@ func show_settlement(
 		+"Netto-Ergebnis Fahrt:  "+str(real_profit)+" €\n"
 		+"Kontostand:            "+str(money)+" €\n"
 		+"Reputation:            "+str(reputation)+"\n"
-		+"Karriere-Rang:         "+career_rank_name()
+		+"Karriere-Rang:         "+career_rank_name()+"\n"
+		+"Auftragsklasse:        "+contract_class_name()+"\n"
+		+"XP dieser Fahrt:       +"+str(mission_xp_earned)
 	)
 
 
@@ -671,24 +695,29 @@ func update_road_events_40(delta):
 	camera_cooldown=max(0.0,camera_cooldown-delta)
 	event_timer+=delta
 
-	# Dynamische Tempolimits und Verkehrslagen sorgen für wechselnde Fahrten.
-	if event_timer>18.0:
+	# 6.5: mehr dynamische Verkehrslagen und wetterabhängige Limits.
+	if event_timer>16.0:
 		event_timer=0.0
-		var roll=randi()%5
-		if roll==0:
+		var roll=randi()%7
+		if weather_state=="Regen" and roll<=1:
+			speed_limit=100
+			event_text="NÄSSE • 100 km/h"
+		elif roll==0:
 			speed_limit=80
 			event_text="BAUSTELLE • 80 km/h"
 		elif roll==1:
+			speed_limit=90
+			event_text="STAUWARNUNG • 90 km/h"
+		elif roll==2:
 			speed_limit=100
 			event_text="DICHTER VERKEHR • 100 km/h"
-		elif roll==2:
+		elif roll==3:
 			speed_limit=120
 			event_text="TEMPOLIMIT • 120 km/h"
 		else:
 			speed_limit=130
 			event_text="FREIE FAHRT • 130 km/h"
 
-	# Mobile Blitzer-Prüfung. Bei deutlicher Überschreitung wird direkt abgebucht.
 	var kmh=int(speed*3.6)
 	if camera_cooldown<=0.0 and kmh>speed_limit+15 and randi()%1000<5:
 		var over=kmh-speed_limit
@@ -699,10 +728,6 @@ func update_road_events_40(delta):
 		camera_cooldown=12.0
 		event_text="⚡ GEBLITZT!  "+str(kmh)+" km/h • -"+str(fine)+" €"
 
-	if event_label!=null:
-		event_label.text=event_text
-	if fine_label!=null:
-		fine_label.text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
 	if kmh>speed_limit+45:
 		police_heat=min(5,police_heat+1)
 	elif kmh<=speed_limit+5:
@@ -710,6 +735,10 @@ func update_road_events_40(delta):
 	if police_heat>=4 and camera_cooldown<=0.0:
 		event_text="🚓 POLIZEI-WARNUNG • Tempo reduzieren!"
 
+	if event_label!=null:
+		event_label.text=event_text
+	if fine_label!=null:
+		fine_label.text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
 
 
 func create_rain_system():
@@ -939,7 +968,7 @@ func create_rest_area_52(z_pos):
 
 
 
-# AUTO BOSS 6.1 – WORLD UPGRADE
+# AUTO BOSS 6.5 – WORLD UPGRADE
 func create_world_upgrade_53():
 	# Leitpfosten dichter gesetzt, damit Geschwindigkeit und Entfernung besser lesbar sind.
 	for z in range(-45,-2950,-45):
@@ -1464,27 +1493,27 @@ func create_ui():
 
 	settlement_panel=ColorRect.new()
 	settlement_panel.color=Color(0.02,0.04,0.08,0.96)
-	settlement_panel.position=Vector2(295,135)
-	settlement_panel.size=Vector2(690,500)
+	settlement_panel.position=Vector2(275,75)
+	settlement_panel.size=Vector2(730,590)
 	settlement_panel.visible=false
 	game_root.add_child(settlement_panel)
 
 	settlement_title=Label.new()
-	settlement_title.position=Vector2(45,30)
-	settlement_title.size=Vector2(600,85)
+	settlement_title.position=Vector2(55,22)
+	settlement_title.size=Vector2(620,78)
 	settlement_title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	settlement_title.add_theme_font_size_override("font_size",28)
+	settlement_title.add_theme_font_size_override("font_size",27)
 	settlement_panel.add_child(settlement_title)
 
 	settlement_details=Label.new()
-	settlement_details.position=Vector2(95,125)
-	settlement_details.size=Vector2(500,235)
-	settlement_details.add_theme_font_size_override("font_size",20)
+	settlement_details.position=Vector2(95,105)
+	settlement_details.size=Vector2(545,390)
+	settlement_details.add_theme_font_size_override("font_size",17)
 	settlement_panel.add_child(settlement_details)
 
 	settlement_next_button=Button.new()
 	settlement_next_button.text="NÄCHSTER AUFTRAG"
-	settlement_next_button.position=Vector2(70,405)
+	settlement_next_button.position=Vector2(75,510)
 	settlement_next_button.size=Vector2(260,60)
 	settlement_next_button.add_theme_font_size_override("font_size",19)
 	settlement_next_button.pressed.connect(func(): settlement_next_job())
@@ -1492,7 +1521,7 @@ func create_ui():
 
 	settlement_home_button=Button.new()
 	settlement_home_button.text="HAUPTMENÜ"
-	settlement_home_button.position=Vector2(360,405)
+	settlement_home_button.position=Vector2(395,510)
 	settlement_home_button.size=Vector2(260,60)
 	settlement_home_button.add_theme_font_size_override("font_size",19)
 	settlement_home_button.pressed.connect(func(): settlement_home())
@@ -1542,8 +1571,8 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 6.1\n"+str(int(speed*3.6))+" km/h"
-	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
+	speed_label.text="AUTO BOSS 6.5\n"+str(int(speed*3.6))+" km/h"
+	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
 	if weather_label!=null:
