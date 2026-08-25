@@ -67,7 +67,10 @@ var weather_label
 var headlights=[]
 var career_level=1
 var jobs_completed=0
-# AUTO BOSS 4.0 systems
+var career_xp=0
+var safe_driving_streak=0
+var total_fines_paid=0
+# AUTO BOSS 5.0 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -116,6 +119,9 @@ func save_game():
 	cfg.set_value("player","reputation",reputation)
 	cfg.set_value("player","selected_car",selected_car)
 	cfg.set_value("player","jobs_completed",jobs_completed)
+	cfg.set_value("player","career_xp",career_xp)
+	cfg.set_value("player","safe_driving_streak",safe_driving_streak)
+	cfg.set_value("player","total_fines_paid",total_fines_paid)
 	cfg.save("user://autoboss.cfg")
 
 
@@ -126,6 +132,9 @@ func load_save():
 		reputation=int(cfg.get_value("player","reputation",15))
 		selected_car=int(cfg.get_value("player","selected_car",0))
 	jobs_completed=int(cfg.get_value("player","jobs_completed",0))
+	career_xp=int(cfg.get_value("player","career_xp",0))
+	safe_driving_streak=int(cfg.get_value("player","safe_driving_streak",0))
+	total_fines_paid=int(cfg.get_value("player","total_fines_paid",0))
 	career_level=1+int(jobs_completed/3)
 
 
@@ -151,7 +160,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 4.0"
+	title.text="AUTO BOSS 5.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -167,7 +176,7 @@ func show_main_menu():
 	menu_button("SPIELSTAND SPEICHERN",Vector2(420,380),func(): save_game())
 
 	var stats=Label.new()
-	stats.text="Geld: "+str(money)+" €     Reputation: "+str(reputation)+"     Karriere-Level: "+str(career_level)
+	stats.text="Geld: "+str(money)+" €     Reputation: "+str(reputation)+"     Karriere-Level: "+str(career_level)+"     XP: "+str(career_xp)
 	stats.position=Vector2(430,490)
 	stats.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(stats)
@@ -348,6 +357,13 @@ func finish_mission():
 
 	money+=reward
 	jobs_completed+=1
+	total_fines_paid+=fines_this_mission
+	if damage<10 and fines_this_mission==0:
+		safe_driving_streak+=1
+		career_xp+=25
+	else:
+		safe_driving_streak=0
+	career_xp+=10
 	career_level=1+int(jobs_completed/3)
 
 	if damage<25:
@@ -384,7 +400,7 @@ func show_settlement(
 		+routes[selected_route]["name"]
 	)
 
-	var real_profit=reward-service_costs
+	var real_profit=reward-service_costs-fines_this_mission
 
 	settlement_details.text=(
 		"Grundvergütung:        "+str(base_reward)+" €\n"
@@ -395,7 +411,7 @@ func show_settlement(
 		+"Bußgelder:             -"+str(fines_total)+" €\n"
 		+"────────────────────────\n"
 		+"Auszahlung:            "+str(reward)+" €\n"
-		+"Tatsächlicher Gewinn:  "+str(real_profit)+" €\n"
+		+"Netto-Ergebnis Fahrt:  "+str(real_profit)+" €\n"
 		+"Kontostand:            "+str(money)+" €\n"
 		+"Reputation:            "+str(reputation)
 	)
@@ -1348,7 +1364,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 4.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 5.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
