@@ -20,16 +20,20 @@ var traffic=[]
 var traffic_timer=0.0
 
 var routes=[
-	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":260,"rep":15,"class":"STANDARD"},
-	{"name":"Stuttgart → München","distance":220.0,"reward":300,"rep":15,"class":"STANDARD"},
-	{"name":"Stuttgart → Nürnberg","distance":210.0,"reward":330,"rep":16,"class":"STANDARD"},
-	{"name":"Stuttgart → Köln","distance":366.0,"reward":470,"rep":15,"class":"STANDARD"},
-	{"name":"Stuttgart → Düsseldorf","distance":410.0,"reward":570,"rep":20,"class":"EXPRESS"},
-	{"name":"Stuttgart → Leipzig","distance":485.0,"reward":660,"rep":21,"class":"EXPRESS"},
-	{"name":"Stuttgart → Hamburg","distance":630.0,"reward":760,"rep":18,"class":"LANGSTRECKE"},
-	{"name":"Stuttgart → Bremen","distance":635.0,"reward":790,"rep":22,"class":"LANGSTRECKE"},
-	{"name":"Stuttgart → Berlin","distance":635.0,"reward":860,"rep":24,"class":"PREMIUM"},
-	{"name":"Stuttgart → Rostock","distance":800.0,"reward":1080,"rep":28,"class":"PREMIUM"}
+	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":295,"rep":15,"class":"STANDARD","risk":"NORMAL"},
+	{"name":"Stuttgart → München","distance":220.0,"reward":340,"rep":15,"class":"STANDARD","risk":"NORMAL"},
+	{"name":"Stuttgart → Nürnberg","distance":210.0,"reward":365,"rep":16,"class":"STANDARD","risk":"NORMAL"},
+	{"name":"Stuttgart → Freiburg","distance":205.0,"reward":390,"rep":17,"class":"STANDARD","risk":"KURVEN"},
+	{"name":"Stuttgart → Köln","distance":366.0,"reward":540,"rep":15,"class":"STANDARD","risk":"VERKEHR"},
+	{"name":"Stuttgart → Düsseldorf","distance":410.0,"reward":650,"rep":20,"class":"EXPRESS","risk":"ZEITDRUCK"},
+	{"name":"Stuttgart → Leipzig","distance":485.0,"reward":760,"rep":21,"class":"EXPRESS","risk":"ZEITDRUCK"},
+	{"name":"Stuttgart → Hannover","distance":510.0,"reward":820,"rep":22,"class":"EXPRESS","risk":"VERKEHR"},
+	{"name":"Stuttgart → Hamburg","distance":630.0,"reward":960,"rep":18,"class":"LANGSTRECKE","risk":"MÜDIGKEIT"},
+	{"name":"Stuttgart → Bremen","distance":635.0,"reward":990,"rep":22,"class":"LANGSTRECKE","risk":"WETTER"},
+	{"name":"Stuttgart → Berlin","distance":635.0,"reward":1120,"rep":24,"class":"PREMIUM","risk":"HOCH"},
+	{"name":"Stuttgart → Rostock","distance":800.0,"reward":1390,"rep":28,"class":"PREMIUM","risk":"HOCH"},
+	{"name":"Stuttgart → Kiel","distance":760.0,"reward":1460,"rep":32,"class":"VIP","risk":"EXTREM"},
+	{"name":"Stuttgart → Dresden","distance":510.0,"reward":1210,"rep":35,"class":"VIP","risk":"EXTREM"}
 ]
 var cars=[
 	{"name":"Transporter","max_speed":42.0,"accel":14.0,"brake":30.0,"fuel_factor":0.80,"color":Color(0.08,0.22,0.55)},
@@ -75,7 +79,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 8.0 BIG JUMP systems
+# AUTO BOSS 9.0 BIG JUMP systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -200,6 +204,15 @@ func career_rank_name():
 func contract_class_name():
 	return str(routes[selected_route].get("class","STANDARD"))
 
+func company_level():
+	return 1+int(jobs_completed/5)
+
+func company_name():
+	if jobs_completed>=40: return "AUTO BOSS LOGISTICS"
+	if jobs_completed>=20: return "PREMIUM TRANSFER"
+	if jobs_completed>=8: return "ROADRUNNER TRANSPORT"
+	return "STARTER TRANSFER"
+
 func show_main_menu():
 	game_state="menu"
 	menu_root.visible=true
@@ -207,13 +220,13 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 8.0"
+	title.text="AUTO BOSS 9.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
 
 	var sub=Label.new()
-	sub.text="Fahrzeugüberführung • Navi • Autobahnausfahrten • Karriere • Tuning"
+	sub.text="Fahrzeugüberführung • Deutschland-Karte • Karriere • Firma • Tuning"
 	sub.position=Vector2(455,130)
 	sub.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(sub)
@@ -224,9 +237,15 @@ func show_main_menu():
 
 	var stats=Label.new()
 	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   XP: "+str(career_xp)+"   •   Perfekt: "+str(perfect_jobs)
-	stats.position=Vector2(430,490)
-	stats.add_theme_font_size_override("font_size",22)
+	stats.position=Vector2(365,485)
+	stats.add_theme_font_size_override("font_size",20)
 	menu_root.add_child(stats)
+
+	var firm=Label.new()
+	firm.text="Firma: "+company_name()+"  •  Firmenstufe "+str(company_level())+"  •  Nächster Meilenstein: "+str((company_level())*5)+" Jobs"
+	firm.position=Vector2(365,525)
+	firm.add_theme_font_size_override("font_size",17)
+	menu_root.add_child(firm)
 
 
 func show_routes():
@@ -243,10 +262,10 @@ func show_routes():
 		var b=Button.new()
 		var needed=int(r.get("rep",15))
 		var locked=reputation<needed
-		b.text=("🔒 " if locked else "")+"["+str(r.get("class","STANDARD"))+"]  "+r["name"]+"  •  "+str(int(r["distance"]))+" km  •  "+str(r["reward"])+" €  •  Rep "+str(needed)
-		b.position=Vector2(245,82+i*46)
-		b.size=Vector2(790,40)
-		b.add_theme_font_size_override("font_size",15)
+		b.text=("🔒 " if locked else "")+"["+str(r.get("class","STANDARD"))+"]  "+r["name"]+"  •  "+str(int(r["distance"]))+" km  •  "+str(r["reward"])+" €  •  "+str(r.get("risk","NORMAL"))+"  •  Rep "+str(needed)
+		b.position=Vector2(205,74+i*34)
+		b.size=Vector2(870,30)
+		b.add_theme_font_size_override("font_size",13)
 		b.disabled=locked
 		var idx=i
 		b.pressed.connect(func():
@@ -255,14 +274,14 @@ func show_routes():
 		)
 		menu_root.add_child(b)
 
-	menu_button("← ZURÜCK",Vector2(420,560),func(): show_main_menu())
+	menu_button("← ZURÜCK",Vector2(420,558),func(): show_main_menu())
 
 func upgrade_cost(level):
 	return 450+level*350
 
 func buy_upgrade(kind):
 	var level=engine_upgrade if kind=="engine" else (brake_upgrade if kind=="brake" else eco_upgrade)
-	if level>=3:
+	if level>=5:
 		return
 	var cost=upgrade_cost(level)
 	if money<cost:
@@ -278,7 +297,7 @@ func show_garage():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="GARAGE 8.0 • FUHRPARK & TUNING"
+	title.text="GARAGE 9.0 • FUHRPARK & TUNING PRO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -308,11 +327,11 @@ func show_garage():
 		var u=upgrades[i]
 		var level=int(u[2])
 		var b=Button.new()
-		var price_text="MAX" if level>=3 else str(upgrade_cost(level))+" €"
-		b.text=str(u[1])+"  Stufe "+str(level)+"/3  •  "+str(u[3])+"  •  "+price_text
+		var price_text="MAX" if level>=5 else str(upgrade_cost(level))+" €"
+		b.text=str(u[1])+"  Stufe "+str(level)+"/5  •  "+str(u[3])+"  •  "+price_text
 		b.position=Vector2(300,300+i*58)
 		b.size=Vector2(680,50)
-		b.disabled=level>=3 or (level<3 and money<upgrade_cost(level))
+		b.disabled=level>=5 or (level<5 and money<upgrade_cost(level))
 		var kind=str(u[0])
 		b.pressed.connect(func(): buy_upgrade(kind))
 		menu_root.add_child(b)
@@ -486,6 +505,8 @@ func finish_mission():
 		mission_xp_earned+=10
 	if str(routes[selected_route].get("class","STANDARD"))=="PREMIUM":
 		mission_xp_earned+=15
+	if str(routes[selected_route].get("class","STANDARD"))=="VIP":
+		mission_xp_earned+=30
 	career_xp+=mission_xp_earned
 	career_level=1+int(jobs_completed/3)
 
@@ -545,7 +566,8 @@ func show_settlement(
 		+"Auftragsklasse:        "+contract_class_name()+"\n"
 		+"XP dieser Fahrt:       +"+str(mission_xp_earned)+"\n"
 		+"Perfekte Fahrten:      "+str(perfect_jobs)+"\n"
-		+"Tuning M/B/E:          "+str(engine_upgrade)+"/"+str(brake_upgrade)+"/"+str(eco_upgrade)
+		+"Tuning M/B/E:          "+str(engine_upgrade)+"/"+str(brake_upgrade)+"/"+str(eco_upgrade)+"
+"+"Firmenstufe:           "+str(company_level())
 	)
 
 
@@ -597,9 +619,11 @@ func spawn_traffic(z_pos):
 func update_traffic(delta):
 	traffic_timer+=delta
 
-	if traffic_timer>2.75:
+	var spawn_delay=max(1.65,2.75-float(company_level())*0.08)
+	if traffic_timer>spawn_delay:
 		traffic_timer=0
-		if traffic.size()<14:
+		var traffic_cap=min(22,14+company_level())
+		if traffic.size()<traffic_cap:
 			spawn_traffic(car.position.z-randf_range(200.0,285.0))
 
 	var lanes=[-5.5,0.0,5.5]
@@ -1657,7 +1681,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 8.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 9.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
