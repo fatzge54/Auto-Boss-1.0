@@ -75,7 +75,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 7.1 systems
+# AUTO BOSS 8.0 BIG JUMP systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -94,6 +94,10 @@ var engine_upgrade=0
 var brake_upgrade=0
 var eco_upgrade=0
 var perfect_jobs=0
+var navigation_label
+var destination_bonus=0
+var route_stage="AUTOBAHN"
+var arrival_announced=false
 
 
 func _ready():
@@ -104,6 +108,7 @@ func _ready():
 	create_road()
 	create_scenery()
 	create_road_features()
+	create_city_gate_80(-2780.0)
 	create_extra_scenery_52()
 	create_world_upgrade_53()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
@@ -202,13 +207,13 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 7.1"
+	title.text="AUTO BOSS 8.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
 
 	var sub=Label.new()
-	sub.text="Fahrzeugüberführung • Karriere • Tuning • Auftragsklassen"
+	sub.text="Fahrzeugüberführung • Navi • Autobahnausfahrten • Karriere • Tuning"
 	sub.position=Vector2(455,130)
 	sub.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(sub)
@@ -273,7 +278,7 @@ func show_garage():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="GARAGE 7.1 • FUHRPARK & TUNING"
+	title.text="GARAGE 8.0 • FUHRPARK & TUNING"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -344,6 +349,9 @@ func start_mission():
 	discipline_bonus=0
 	long_distance_bonus=0
 	mission_xp_earned=0
+	destination_bonus=0
+	route_stage="AUTOBAHN"
+	arrival_announced=false
 
 	if settlement_panel!=null:
 		settlement_panel.visible=false
@@ -411,6 +419,19 @@ func update_camera():
 func update_mission(delta):
 	distance_left-=speed*3.6*delta/120.0
 
+	# 8.0: echte Anfahrtsphase – Navi führt in den letzten Kilometern zur Ausfahrt.
+	if distance_left<=12.0 and route_stage=="AUTOBAHN":
+		route_stage="AUSFAHRT"
+		event_text="NAVI: Zielausfahrt in 12 km • rechts einordnen"
+		event_timer=7.0
+	if distance_left<=4.0 and route_stage=="AUSFAHRT":
+		route_stage="ZIEL"
+		event_text="ZIELBEREICH • Übergabe voraus"
+		event_timer=7.0
+		if not arrival_announced:
+			arrival_announced=true
+			destination_bonus=35 if car.position.x>1.5 else 15
+
 	if distance_left<=0:
 		distance_left=0
 		finish_mission()
@@ -429,6 +450,8 @@ func finish_mission():
 	right=false
 
 	var base_reward=int(routes[selected_route]["reward"])
+	# 8.0 Zielankunft-Bonus: sauberes Einordnen in der Anfahrtsphase wird belohnt.
+	base_reward+=destination_bonus
 	var clean_bonus=100 if damage<10 else 0
 	var fuel_bonus=50 if fuel>20 else 0
 	var damage_penalty=int(round(damage*2.0))
@@ -1452,6 +1475,13 @@ func create_ui():
 	info_label.add_theme_font_size_override("font_size",19)
 	game_root.add_child(info_label)
 
+	navigation_label=Label.new()
+	navigation_label.position=Vector2(350,116)
+	navigation_label.size=Vector2(650,42)
+	navigation_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	navigation_label.add_theme_font_size_override("font_size",17)
+	game_root.add_child(navigation_label)
+
 	money_label=Label.new()
 	money_label.position=Vector2(1100,20)
 	money_label.add_theme_font_size_override("font_size",24)
@@ -1627,16 +1657,54 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 7.1\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 8.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
+	if navigation_label!=null:
+		var dest=route_destination_80()
+		if distance_left>60.0:
+			navigation_label.text="NAVI  ➜  "+dest+"  •  Autobahn folgen"
+		elif distance_left>12.0:
+			navigation_label.text="NAVI  ➜  "+dest+"  •  Ausfahrt in "+str(int(distance_left-8.0))+" km"
+		elif distance_left>4.0:
+			navigation_label.text="NAVI  ↗  RECHTS EINORDNEN  •  "+dest
+		else:
+			navigation_label.text="NAVI  ★  ZIELBEREICH "+dest+"  •  Übergabe"
 	if weather_label!=null:
 		var phase="NACHT" if day_clock>0.78 or day_clock<0.10 else "TAG"
 		weather_label.text=phase+"  •  "+weather_state
 	if route_progress!=null:
 		var total=float(routes[selected_route]["distance"])
 		route_progress.value=clamp((1.0-distance_left/total)*100.0,0.0,100.0)
+
+
+
+func route_destination_80():
+	var route_name=str(routes[selected_route]["name"])
+	var parts=route_name.split("→")
+	return parts[parts.size()-1].strip_edges()
+
+
+func create_city_gate_80(z_pos):
+	# 8.0 Zielregion: sichtbare Skyline und Logistik-/Übergabezone neben der Autobahn.
+	var root=Node3D.new()
+	root.position=Vector3(0,0,z_pos)
+	add_child(root)
+	for i in range(9):
+		var side=-1.0 if i%2==0 else 1.0
+		var x=side*(18.0+float(i%4)*5.0)
+		var h=5.0+float((i*3)%9)
+		station_box(root,Vector3(5.0,h,6.0),Vector3(x,h/2.0,-float(i)*9.0),Color(0.28,0.32,0.38))
+	# markantes Zielportal
+	station_box(root,Vector3(0.22,5.5,0.22),Vector3(9.5,2.75,-48),Color(0.75,0.77,0.80))
+	station_box(root,Vector3(7.5,1.4,0.16),Vector3(12.5,5.0,-48),Color(0.02,0.38,0.20))
+	var label=Label3D.new()
+	label.text="AUTO BOSS • ZIEL / ÜBERGABE"
+	label.font_size=24
+	label.outline_size=4
+	label.position=Vector3(12.5,5.0,-48.1)
+	root.add_child(label)
 
 
 func box(size_value,pos,color_value):
