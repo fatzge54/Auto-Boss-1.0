@@ -70,7 +70,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 5.0 systems
+# AUTO BOSS 5.0.1 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -160,7 +160,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 5.0"
+	title.text="AUTO BOSS 5.0.1"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -357,8 +357,8 @@ func finish_mission():
 
 	money+=reward
 	jobs_completed+=1
-	total_fines_paid+=fines_this_mission
-	if damage<10 and fines_this_mission==0:
+	total_fines_paid+=fines_total
+	if damage<10 and fines_total==0:
 		safe_driving_streak+=1
 		career_xp+=25
 	else:
@@ -400,7 +400,7 @@ func show_settlement(
 		+routes[selected_route]["name"]
 	)
 
-	var real_profit=reward-service_costs-fines_this_mission
+	var real_profit=reward-service_costs-fines_total
 
 	settlement_details.text=(
 		"Grundvergütung:        "+str(base_reward)+" €\n"
@@ -1364,7 +1364,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 5.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 5.0.1\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
