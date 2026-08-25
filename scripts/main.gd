@@ -33,7 +33,11 @@ var routes=[
 	{"name":"Stuttgart → Berlin","distance":635.0,"reward":1120,"rep":24,"class":"PREMIUM","risk":"HOCH"},
 	{"name":"Stuttgart → Rostock","distance":800.0,"reward":1390,"rep":28,"class":"PREMIUM","risk":"HOCH"},
 	{"name":"Stuttgart → Kiel","distance":760.0,"reward":1460,"rep":32,"class":"VIP","risk":"EXTREM"},
-	{"name":"Stuttgart → Dresden","distance":510.0,"reward":1210,"rep":35,"class":"VIP","risk":"EXTREM"}
+	{"name":"Stuttgart → Dresden","distance":510.0,"reward":1210,"rep":35,"class":"VIP","risk":"EXTREM"},
+	{"name":"Stuttgart → Dortmund","distance":430.0,"reward":720,"rep":23,"class":"EXPRESS","risk":"VERKEHR"},
+	{"name":"Stuttgart → Lübeck","distance":690.0,"reward":1180,"rep":27,"class":"LANGSTRECKE","risk":"WETTER"},
+	{"name":"Stuttgart → Flensburg","distance":835.0,"reward":1580,"rep":38,"class":"VIP","risk":"EXTREM"},
+	{"name":"Stuttgart → Sylt","distance":900.0,"reward":1850,"rep":42,"class":"BOSS","risk":"MAXIMAL"}
 ]
 var cars=[
 	{"name":"Transporter","max_speed":42.0,"accel":14.0,"brake":30.0,"fuel_factor":0.80,"color":Color(0.08,0.22,0.55)},
@@ -105,6 +109,12 @@ var navigation_label
 var destination_bonus=0
 var route_stage="AUTOBAHN"
 var arrival_announced=false
+var staff_level=0
+var fleet_level=0
+var office_level=0
+var company_jobs=0
+var company_income_last=0
+
 
 
 func _ready():
@@ -120,6 +130,7 @@ func _ready():
 	create_world_upgrade_53()
 	create_visual_upgrade_100()
 	create_visual_upgrade_110()
+	create_world_upgrade_120()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -157,6 +168,10 @@ func save_game():
 	cfg.set_value("player","brake_upgrade",brake_upgrade)
 	cfg.set_value("player","eco_upgrade",eco_upgrade)
 	cfg.set_value("player","perfect_jobs",perfect_jobs)
+	cfg.set_value("player","staff_level",staff_level)
+	cfg.set_value("player","fleet_level",fleet_level)
+	cfg.set_value("player","office_level",office_level)
+	cfg.set_value("player","company_jobs",company_jobs)
 	cfg.save("user://autoboss.cfg")
 
 
@@ -174,6 +189,10 @@ func load_save():
 	brake_upgrade=int(cfg.get_value("player","brake_upgrade",0))
 	eco_upgrade=int(cfg.get_value("player","eco_upgrade",0))
 	perfect_jobs=int(cfg.get_value("player","perfect_jobs",0))
+	staff_level=int(cfg.get_value("player","staff_level",0))
+	fleet_level=int(cfg.get_value("player","fleet_level",0))
+	office_level=int(cfg.get_value("player","office_level",0))
+	company_jobs=int(cfg.get_value("player","company_jobs",0))
 	career_level=1+int(jobs_completed/3)
 
 
@@ -218,6 +237,67 @@ func company_name():
 	if jobs_completed>=8: return "ROADRUNNER TRANSPORT"
 	return "STARTER TRANSFER"
 
+func company_upgrade_cost(level):
+	return 900+level*850
+
+func company_capacity():
+	return 1+fleet_level
+
+func company_daily_power():
+	return staff_level*35+fleet_level*55+office_level*25
+
+func buy_company_upgrade(kind):
+	var level=staff_level if kind=="staff" else (fleet_level if kind=="fleet" else office_level)
+	if level>=5:
+		return
+	var cost=company_upgrade_cost(level)
+	if money<cost:
+		return
+	money-=cost
+	if kind=="staff":
+		staff_level+=1
+	elif kind=="fleet":
+		fleet_level+=1
+	else:
+		office_level+=1
+	save_game()
+	show_company_hq()
+
+func show_company_hq():
+	clear_menu()
+	var title=Label.new()
+	title.text="AUTO BOSS 12.0 • FIRMENZENTRALE"
+	title.position=Vector2(380,34)
+	title.add_theme_font_size_override("font_size",34)
+	menu_root.add_child(title)
+
+	var info=Label.new()
+	info.text="Firma: "+company_name()+"  •  Stufe "+str(company_level())+"\nKapazität: "+str(company_capacity())+" parallele Transfers  •  Firmenaufträge: "+str(company_jobs)+"\nManagement-Power: "+str(company_daily_power())+"  •  Konto: "+str(money)+" €"
+	info.position=Vector2(365,95)
+	info.add_theme_font_size_override("font_size",18)
+	menu_root.add_child(info)
+
+	var upgrades=[
+		["staff","MITARBEITER",staff_level,"mehr Nebenertrag"],
+		["fleet","FIRMENFLOTTE",fleet_level,"mehr Transfer-Kapazität"],
+		["office","DISPOSITION",office_level,"bessere Firmenboni"]
+	]
+	for i in range(upgrades.size()):
+		var u=upgrades[i]
+		var level=int(u[2])
+		var b=Button.new()
+		var price="MAX" if level>=5 else str(company_upgrade_cost(level))+" €"
+		b.text=str(u[1])+"  Stufe "+str(level)+"/5  •  "+str(u[3])+"  •  "+price
+		b.position=Vector2(300,220+i*72)
+		b.size=Vector2(680,58)
+		b.disabled=level>=5 or (level<5 and money<company_upgrade_cost(level))
+		var kind=str(u[0])
+		b.pressed.connect(func(): buy_company_upgrade(kind))
+		menu_root.add_child(b)
+
+	menu_button("← ZURÜCK",Vector2(420,505),func(): show_main_menu())
+
+
 func show_main_menu():
 	game_state="menu"
 	menu_root.visible=true
@@ -225,7 +305,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 11.0"
+	title.text="AUTO BOSS 12.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -236,19 +316,20 @@ func show_main_menu():
 	sub.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(sub)
 
-	menu_button("AUFTRAG STARTEN",Vector2(420,220),func(): show_routes())
-	menu_button("GARAGE / FAHRZEUG",Vector2(420,300),func(): show_garage())
-	menu_button("SPIELSTAND SPEICHERN",Vector2(420,380),func(): save_game())
+	menu_button("AUFTRAG STARTEN",Vector2(420,190),func(): show_routes())
+	menu_button("GARAGE / FAHRZEUG",Vector2(420,260),func(): show_garage())
+	menu_button("FIRMENZENTRALE",Vector2(420,330),func(): show_company_hq())
+	menu_button("SPIELSTAND SPEICHERN",Vector2(420,400),func(): save_game())
 
 	var stats=Label.new()
 	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   XP: "+str(career_xp)+"   •   Perfekt: "+str(perfect_jobs)
-	stats.position=Vector2(365,485)
+	stats.position=Vector2(365,495)
 	stats.add_theme_font_size_override("font_size",20)
 	menu_root.add_child(stats)
 
 	var firm=Label.new()
 	firm.text="Firma: "+company_name()+"  •  Firmenstufe "+str(company_level())+"  •  Nächster Meilenstein: "+str((company_level())*5)+" Jobs"
-	firm.position=Vector2(365,525)
+	firm.position=Vector2(365,530)
 	firm.add_theme_font_size_override("font_size",17)
 	menu_root.add_child(firm)
 
@@ -268,9 +349,11 @@ func show_routes():
 		var needed=int(r.get("rep",15))
 		var locked=reputation<needed
 		b.text=("🔒 " if locked else "")+"["+str(r.get("class","STANDARD"))+"]  "+r["name"]+"  •  "+str(int(r["distance"]))+" km  •  "+str(r["reward"])+" €  •  "+str(r.get("risk","NORMAL"))+"  •  Rep "+str(needed)
-		b.position=Vector2(205,74+i*34)
-		b.size=Vector2(870,30)
-		b.add_theme_font_size_override("font_size",13)
+			var col=int(i/9)
+		var row=i%9
+		b.position=Vector2(35+col*625,92+row*48)
+		b.size=Vector2(610,42)
+		b.add_theme_font_size_override("font_size",12)
 		b.disabled=locked
 		var idx=i
 		b.pressed.connect(func():
@@ -279,7 +362,7 @@ func show_routes():
 		)
 		menu_root.add_child(b)
 
-	menu_button("← ZURÜCK",Vector2(420,558),func(): show_main_menu())
+	menu_button("← ZURÜCK",Vector2(420,548),func(): show_main_menu())
 
 func upgrade_cost(level):
 	return 450+level*350
@@ -302,7 +385,7 @@ func show_garage():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="GARAGE 11.0 • FUHRPARK & TUNING PRO"
+	title.text="GARAGE 12.0 • FUHRPARK & TUNING PRO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -376,6 +459,7 @@ func start_mission():
 	destination_bonus=0
 	route_stage="AUTOBAHN"
 	arrival_announced=false
+	company_income_last=0
 
 	if settlement_panel!=null:
 		settlement_panel.visible=false
@@ -501,8 +585,11 @@ func finish_mission():
 	long_distance_bonus=75 if float(routes[selected_route]["distance"])>=400.0 else 0
 	if fines_total==0 and damage<10:
 		streak_bonus=min(safe_driving_streak*25,125)
-	money+=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus
+	company_income_last=company_daily_power()
+	money+=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus+company_income_last
 	jobs_completed+=1
+	if staff_level>0 or fleet_level>0:
+		company_jobs+=company_capacity()
 	total_fines_paid+=fines_total
 	mission_xp_earned=10
 	if damage<10 and fines_total==0:
@@ -554,7 +641,7 @@ func show_settlement(
 		+routes[selected_route]["name"]
 	)
 
-	var real_profit=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus-service_costs-fines_total
+	var real_profit=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus+company_income_last-service_costs-fines_total
 
 	settlement_details.text=(
 		"Grundvergütung:        "+str(base_reward)+" €\n"
@@ -564,6 +651,7 @@ func show_settlement(
 		+"Serienbonus:           +"+str(streak_bonus)+" €\n"
 		+"Disziplinbonus:        +"+str(discipline_bonus)+" €\n"
 		+"Langstreckenbonus:     +"+str(long_distance_bonus)+" €\n"
+		+"Firmen-Ertrag:         +"+str(company_income_last)+" €\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
 		+"Bußgelder:             -"+str(fines_total)+" €\n"
@@ -1728,7 +1816,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 11.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 12.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -1769,6 +1857,37 @@ func create_visual_upgrade_110():
 			light_box(self,Vector3(side*8.58,0.70,z-0.10),Color(1.0,0.80,0.30))
 	create_motorway_sign(Vector3(0,0,-1680),"A8  Karlsruhe   München")
 	create_motorway_sign(Vector3(0,0,-2680),"Ausfahrt  1000 m")
+
+
+
+func create_world_upgrade_120():
+	# 12.0: erkennbare Streckenabschnitte – Logistikpark, Tunnelportal und zusätzliche Brücken.
+	create_logistics_park_120(-760.0,-1.0)
+	create_logistics_park_120(-2140.0,1.0)
+	create_tunnel_portal_120(-1940.0)
+	create_motorway_sign(Vector3(0,0,-720),"AUTO BOSS LOGISTICS • NORD")
+	create_motorway_sign(Vector3(0,0,-1980),"TUNNEL • 120 km/h")
+
+func create_logistics_park_120(z_pos:float, side:float):
+	var root=Node3D.new()
+	root.position=Vector3(side*24.0,0,z_pos)
+	add_child(root)
+	for i in range(4):
+		var h=4.0+float(i%2)*2.0
+		station_box(root,Vector3(8.0,h,12.0),Vector3(float(i%2)*10.0,h/2.0,-float(i)*15.0),Color(0.34,0.38,0.42))
+	var sign=Label3D.new()
+	sign.text="AUTO BOSS\nLOGISTICS"
+	sign.font_size=26
+	sign.outline_size=5
+	sign.position=Vector3(4.0,6.5,-18.0)
+	root.add_child(sign)
+
+func create_tunnel_portal_120(z_pos:float):
+	station_box(self,Vector3(2.0,6.0,1.0),Vector3(-9.0,3.0,z_pos),Color(0.30,0.31,0.33))
+	station_box(self,Vector3(2.0,6.0,1.0),Vector3(9.0,3.0,z_pos),Color(0.30,0.31,0.33))
+	station_box(self,Vector3(20.0,1.2,1.0),Vector3(0,6.0,z_pos),Color(0.30,0.31,0.33))
+	for x in [-5.5,0.0,5.5]:
+		light_box(self,Vector3(x,5.4,z_pos-0.55),Color(1.0,0.82,0.38))
 
 
 func route_destination_80():
