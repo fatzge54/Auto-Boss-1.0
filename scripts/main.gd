@@ -20,10 +20,13 @@ var traffic=[]
 var traffic_timer=0.0
 
 var routes=[
-	{"name":"Stuttgart → Köln","distance":366.0,"reward":450},
-	{"name":"Stuttgart → München","distance":220.0,"reward":280},
-	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":260},
-	{"name":"Stuttgart → Hamburg","distance":630.0,"reward":720}
+	{"name":"Stuttgart → Köln","distance":366.0,"reward":450,"rep":15},
+	{"name":"Stuttgart → München","distance":220.0,"reward":280,"rep":15},
+	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":260,"rep":15},
+	{"name":"Stuttgart → Hamburg","distance":630.0,"reward":720,"rep":18},
+	{"name":"Stuttgart → Nürnberg","distance":210.0,"reward":310,"rep":16},
+	{"name":"Stuttgart → Düsseldorf","distance":410.0,"reward":540,"rep":20},
+	{"name":"Stuttgart → Berlin","distance":635.0,"reward":820,"rep":24}
 ]
 
 var cars=[
@@ -70,7 +73,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 5.0.1 systems
+# AUTO BOSS 5.2 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -89,9 +92,10 @@ func _ready():
 	create_road()
 	create_scenery()
 	create_road_features()
-	create_service_station_at(Vector3(13.0,0,-520.0),"SERVICE SÜD",1.79)
-	create_service_station_at(Vector3(13.0,0,-1120.0),"SERVICE MITTE",1.89)
-	create_service_station_at(Vector3(13.0,0,-1720.0),"SERVICE NORD",1.84)
+	create_extra_scenery_52()
+	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
+	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
+	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
 	create_player()
 	create_rain_system()
 	create_ui()
@@ -160,7 +164,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 5.0.1"
+	title.text="AUTO BOSS 5.2"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -186,19 +190,21 @@ func show_routes():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUFTRAG AUSWÄHLEN"
-	title.position=Vector2(420,55)
+	title.text="AUFTRAGSZENTRALE"
+	title.position=Vector2(450,35)
 	title.add_theme_font_size_override("font_size",34)
 	menu_root.add_child(title)
 
 	for i in range(routes.size()):
 		var r=routes[i]
 		var b=Button.new()
-		b.text=r["name"]+"   •   "+str(int(r["distance"]))+" km   •   "+str(r["reward"])+" €"
-		b.position=Vector2(325,135+i*82)
-		b.size=Vector2(630,60)
-		b.add_theme_font_size_override("font_size",19)
-
+		var needed=int(r.get("rep",15))
+		var locked=reputation<needed
+		b.text=("🔒 " if locked else "")+r["name"]+"  •  "+str(int(r["distance"]))+" km  •  "+str(r["reward"])+" €  •  Rep "+str(needed)
+		b.position=Vector2(285,90+i*58)
+		b.size=Vector2(710,48)
+		b.add_theme_font_size_override("font_size",17)
+		b.disabled=locked
 		var idx=i
 		b.pressed.connect(func():
 			selected_route=idx
@@ -206,8 +212,7 @@ func show_routes():
 		)
 		menu_root.add_child(b)
 
-	menu_button("← ZURÜCK",Vector2(420,520),func(): show_main_menu())
-
+	menu_button("← ZURÜCK",Vector2(420,515),func(): show_main_menu())
 
 func show_garage():
 	clear_menu()
@@ -502,7 +507,14 @@ func update_traffic(delta):
 						lane_index=i
 				var direction=-1 if randi()%2==0 else 1
 				var next_index=clamp(lane_index+direction,0,lanes.size()-1)
-				target_x=lanes[next_index]
+				var candidate_x=lanes[next_index]
+				var lane_free=true
+				for other in traffic:
+					if other!=t and is_instance_valid(other) and abs(other.position.x-candidate_x)<1.6 and abs(other.position.z-t.position.z)<18.0:
+						lane_free=false
+						break
+				if lane_free:
+					target_x=candidate_x
 
 		t.set_meta("lane_timer",lane_timer)
 		t.set_meta("target_x",target_x)
@@ -854,6 +866,29 @@ func create_roadside_buildings(pos):
 		station_box(root,Vector3(1.3,0.75,0.08),Vector3(x,h*0.60,-2.12),Color(0.12,0.30,0.42))
 
 
+func create_extra_scenery_52():
+	# 5.2: mehr Autobahnleben – Parkplätze, Baustellenoptik und Leitbaken.
+	for z in [-340.0,-1260.0,-2260.0]:
+		create_rest_area_52(z)
+	for z in range(-180,-2900,-310):
+		station_box(self,Vector3(0.18,0.9,0.18),Vector3(-9.8,0.45,z),Color(0.92,0.92,0.92))
+		station_box(self,Vector3(0.18,0.9,0.18),Vector3(9.8,0.45,z-150),Color(0.92,0.92,0.92))
+
+func create_rest_area_52(z_pos):
+	var root=Node3D.new()
+	root.position=Vector3(18,0,z_pos)
+	add_child(root)
+	station_box(root,Vector3(12,0.18,28),Vector3(0,0.05,0),Color(0.22,0.23,0.25))
+	station_box(root,Vector3(7,3.2,5),Vector3(2,1.6,7),Color(0.72,0.68,0.58))
+	var label=Label3D.new()
+	label.text="AUTO BOSS  •  RASTPLATZ"
+	label.font_size=22
+	label.outline_size=4
+	label.position=Vector3(0,3.8,-4)
+	label.rotation_degrees.y=180
+	root.add_child(label)
+
+
 func rotated_box(parent,size_value,pos,color_value,y_rotation):
 	var obj=MeshInstance3D.new()
 	var mesh=BoxMesh.new()
@@ -914,7 +949,7 @@ func create_service_station_at(pos,station_name,fuel_price):
 
 func create_service_station_legacy_unused():
 	var station=Node3D.new()
-	station.position=Vector3(13.0,0,-520.0)
+	station.position=Vector3(16.0,0,-520.0)
 	add_child(station)
 
 	station_box(
@@ -988,7 +1023,7 @@ func update_service():
 		if (
 			car.position.z < station["z"] + 65.0
 			and car.position.z > station["z"] - 65.0
-			and car.position.x > 5.3
+			and car.position.x > 6.0
 			and speed < 3.0
 		):
 			near_service=true
@@ -1364,7 +1399,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 5.0.1\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 5.2\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
