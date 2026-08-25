@@ -106,6 +106,18 @@ var company_fleet=0
 var company_office=0
 var company_jobs=0
 var company_bonus_last=0
+var driver_level=1
+var driver_salary=45
+var fleet_condition=100
+var dispatch_reputation=0
+var company_contracts_won=0
+var empire_level=1
+var branch_count=1
+var logistics_rating=0
+var elite_contracts=0
+var company_cash_total=0
+
+
 var company_income_total=0
 var company_passive_last=0
 var navigation_label
@@ -168,6 +180,16 @@ func save_game():
 	cfg.set_value("player","company_fleet",company_fleet)
 	cfg.set_value("player","company_office",company_office)
 	cfg.set_value("player","company_jobs",company_jobs)
+	cfg.set_value("player","driver_level",driver_level)
+	cfg.set_value("player","driver_salary",driver_salary)
+	cfg.set_value("player","fleet_condition",fleet_condition)
+	cfg.set_value("player","dispatch_reputation",dispatch_reputation)
+	cfg.set_value("player","company_contracts_won",company_contracts_won)
+	cfg.set_value("player","empire_level",empire_level)
+	cfg.set_value("player","branch_count",branch_count)
+	cfg.set_value("player","logistics_rating",logistics_rating)
+	cfg.set_value("player","elite_contracts",elite_contracts)
+	cfg.set_value("player","company_cash_total",company_cash_total)
 	cfg.set_value("player","company_income_total",company_income_total)
 	cfg.save("user://autoboss.cfg")
 
@@ -190,6 +212,16 @@ func load_save():
 	company_fleet=int(cfg.get_value("player","company_fleet",0))
 	company_office=int(cfg.get_value("player","company_office",0))
 	company_jobs=int(cfg.get_value("player","company_jobs",0))
+	driver_level=int(cfg.get_value("player","driver_level",1))
+	driver_salary=int(cfg.get_value("player","driver_salary",45))
+	fleet_condition=int(cfg.get_value("player","fleet_condition",100))
+	dispatch_reputation=int(cfg.get_value("player","dispatch_reputation",0))
+	company_contracts_won=int(cfg.get_value("player","company_contracts_won",0))
+	empire_level=int(cfg.get_value("player","empire_level",1))
+	branch_count=int(cfg.get_value("player","branch_count",1))
+	logistics_rating=int(cfg.get_value("player","logistics_rating",0))
+	elite_contracts=int(cfg.get_value("player","elite_contracts",0))
+	company_cash_total=int(cfg.get_value("player","company_cash_total",0))
 	company_income_total=int(cfg.get_value("player","company_income_total",0))
 	career_level=1+int(jobs_completed/3)
 
@@ -287,10 +319,73 @@ func buy_company_upgrade_1202(kind):
 	save_game()
 	show_company_hq_1202()
 
+func empire_rank_130():
+	if empire_level>=5:
+		return "LOGISTIK-IMPERIUM"
+	elif empire_level>=4:
+		return "BUNDESWEITE SPEDITION"
+	elif empire_level>=3:
+		return "REGIONALER MARKTFÜHRER"
+	elif empire_level>=2:
+		return "WACHSENDE FIRMA"
+	return "STARTER-UNTERNEHMEN"
+
+func branch_cost_130():
+	return 2500+branch_count*1750
+
+func buy_branch_130():
+	var cost=branch_cost_130()
+	if money<cost or branch_count>=5:
+		return
+	money-=cost
+	branch_count+=1
+	empire_level=max(empire_level,branch_count)
+	save_game()
+	show_company_hq_1202()
+
+func empire_contract_bonus_130():
+	var teams=min(company_staff,company_fleet)
+	if teams<=0:
+		return 0
+	return teams*(branch_count*30+empire_level*25+company_office*15)
+
+func company_driver_name_123():
+	if driver_level>=5:
+		return "SENIOR-FAHRER"
+	elif driver_level>=3:
+		return "PROFI-FAHRER"
+	return "JUNIOR-FAHRER"
+
+func driver_upgrade_cost_123():
+	return 650+driver_level*500
+
+func train_driver_123():
+	if driver_level>=5:
+		return
+	var cost=driver_upgrade_cost_123()
+	if money<cost:
+		return
+	money-=cost
+	driver_level+=1
+	driver_salary=45+(driver_level-1)*20
+	save_game()
+	show_company_hq_1202()
+
+func repair_company_fleet_123():
+	if fleet_condition>=100:
+		return
+	var cost=(100-fleet_condition)*8
+	if money<cost:
+		return
+	money-=cost
+	fleet_condition=100
+	save_game()
+	show_company_hq_1202()
+
 func show_company_hq_1202():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 12.2.0 • FIRMENZENTRALE"
+	title.text="AUTO BOSS 13.0 • FIRMENZENTRALE"
 	title.position=Vector2(335,35)
 	title.add_theme_font_size_override("font_size",34)
 	menu_root.add_child(title)
@@ -326,7 +421,44 @@ func show_company_hq_1202():
 	hint.text="1 Mitarbeiter + 1 Firmenfahrzeug = 1 automatisches Team. Firmenjobs laufen nach jeder eigenen Lieferung."
 	hint.position=Vector2(265,435); hint.add_theme_font_size_override("font_size",16); menu_root.add_child(hint)
 
-	menu_button("← ZURÜCK",Vector2(420,510),func(): show_main_menu())
+	var management=Label.new()
+	management.text="Fahrer: "+company_driver_name_123()+"  Level "+str(driver_level)+"/5  •  Gehalt "+str(driver_salary)+" €\nFlottenzustand: "+str(fleet_condition)+"%  •  Dispo-Rep: "+str(dispatch_reputation)+"  •  Großverträge: "+str(company_contracts_won)
+	management.position=Vector2(320,435)
+	management.add_theme_font_size_override("font_size",16)
+	menu_root.add_child(management)
+
+	var train=Button.new()
+	train.text="FAHRER-TRAINING  •  "+str(driver_upgrade_cost_123())+" €"
+	train.position=Vector2(300,485)
+	train.size=Vector2(330,48)
+	train.disabled=driver_level>=5 or money<driver_upgrade_cost_123()
+	train.pressed.connect(func(): train_driver_123())
+	menu_root.add_child(train)
+
+	var repair=Button.new()
+	var repair_cost=(100-fleet_condition)*8
+	repair.text="FLOTTE WARTEN  •  "+str(repair_cost)+" €"
+	repair.position=Vector2(650,485)
+	repair.size=Vector2(330,48)
+	repair.disabled=fleet_condition>=100 or money<repair_cost
+	repair.pressed.connect(func(): repair_company_fleet_123())
+	menu_root.add_child(repair)
+
+	var empire=Label.new()
+	empire.text="IMPERIUM: "+empire_rank_130()+"  •  Stufe "+str(empire_level)+"  •  Niederlassungen "+str(branch_count)+"/5\nLogistik-Rating: "+str(logistics_rating)+"  •  Elite-Verträge: "+str(elite_contracts)+"  •  Firmenumsatz gesamt: "+str(company_cash_total)+" €"
+	empire.position=Vector2(320,535)
+	empire.add_theme_font_size_override("font_size",15)
+	menu_root.add_child(empire)
+
+	var branch=Button.new()
+	branch.text="NIEDERLASSUNG KAUFEN  •  "+str(branch_cost_130())+" €"
+	branch.position=Vector2(300,585)
+	branch.size=Vector2(680,48)
+	branch.disabled=branch_count>=5 or money<branch_cost_130()
+	branch.pressed.connect(func(): buy_branch_130())
+	menu_root.add_child(branch)
+
+	menu_button("← ZURÜCK",Vector2(420,645),func(): show_main_menu())
 
 
 func show_main_menu():
@@ -336,7 +468,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 12.2.0"
+	title.text="AUTO BOSS 13.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -615,6 +747,28 @@ func finish_mission():
 	if fines_total==0 and damage<10:
 		streak_bonus=min(safe_driving_streak*25,125)
 	company_bonus_last=company_bonus_1202()
+	var active_teams=min(company_staff,company_fleet)
+	if active_teams>0:
+		var driver_income=active_teams*(35+driver_level*20+company_office*10)
+		var salary_cost=active_teams*driver_salary
+		company_bonus_last+=max(0,driver_income-salary_cost)
+		company_jobs+=active_teams
+		dispatch_reputation+=active_teams
+		fleet_condition=max(0,fleet_condition-active_teams*2)
+		var empire_bonus=empire_contract_bonus_130()
+		company_bonus_last+=empire_bonus
+		logistics_rating+=active_teams*branch_count
+		company_cash_total+=company_bonus_last
+		if logistics_rating>=25:
+			var elite_bonus=500+empire_level*150+branch_count*100
+			company_bonus_last+=elite_bonus
+			company_cash_total+=elite_bonus
+			elite_contracts+=1
+			logistics_rating-=25
+		if dispatch_reputation>=10:
+			company_bonus_last+=250+company_office*75
+			company_contracts_won+=1
+			dispatch_reputation-=10
 	money+=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus+company_bonus_last
 	run_company_jobs_122()
 	jobs_completed+=1
@@ -679,7 +833,7 @@ func show_settlement(
 		+"Serienbonus:           +"+str(streak_bonus)+" €\n"
 		+"Disziplinbonus:        +"+str(discipline_bonus)+" €\n"
 		+"Langstreckenbonus:     +"+str(long_distance_bonus)+" €\n"
-		+"Firmenbonus:           +"+str(company_bonus_last)+" €\n"
+		+"Firmenbonus:           +"+str(company_bonus_last)+" €\n"		+"Firmenmanagement:      Fahrer L"+str(driver_level)+" • Flotte "+str(fleet_condition)+"%\n"		+"Imperium:              "+empire_rank_130()+" • "+str(branch_count)+" Standorte\n"
 		+"Firmen-Autoaufträge:   +"+str(company_passive_last)+" €\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
@@ -1845,7 +1999,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 12.2.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 13.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
