@@ -1,0 +1,1 @@
+AUTO BOSS 12.0.2 – frisch aus 11.0. Firmenzentrale mit einfachen Integer-Werten; keine neuen Weltobjekte oder komplexen 12.0-Strukturen.
