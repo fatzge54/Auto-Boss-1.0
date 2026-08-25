@@ -30,9 +30,9 @@ var routes=[
 ]
 
 var cars=[
-	{"name":"Transporter","max_speed":42.0,"accel":14.0,"brake":30.0,"fuel_factor":0.80,"color":Color(0.08,0.22,0.55)},
-	{"name":"Limousine","max_speed":48.0,"accel":18.0,"brake":34.0,"fuel_factor":1.00,"color":Color(0.08,0.08,0.10)},
-	{"name":"Sportwagen","max_speed":55.0,"accel":24.0,"brake":39.0,"fuel_factor":1.25,"color":Color(0.75,0.08,0.08)}
+	{"name":"Transporter","max_speed":42.0,"accel":14.0,"brake":30.0,"fuel_factor":0.80,"rep":0,"color":Color(0.08,0.22,0.55)},
+	{"name":"Limousine","max_speed":48.0,"accel":18.0,"brake":34.0,"fuel_factor":1.00,"rep":18,"color":Color(0.08,0.08,0.10)},
+	{"name":"Sportwagen","max_speed":55.0,"accel":24.0,"brake":39.0,"fuel_factor":1.25,"rep":28,"color":Color(0.75,0.08,0.08)}
 ]
 
 var ui_layer
@@ -73,15 +73,23 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 5.3 systems
+# AUTO BOSS 6.0 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
 var event_timer=0.0
 var event_text="Freie Fahrt"
+	police_heat=0
+	police_warning=""
 var event_label
 var fine_label
 var headlights_on=true
+var owned_cars=[true,false,false]
+var car_prices=[0,3200,8500]
+var police_heat=0
+var police_warning=""
+var mission_no_fine_bonus=0
+
 
 
 func _ready():
@@ -93,7 +101,6 @@ func _ready():
 	create_scenery()
 	create_road_features()
 	create_extra_scenery_52()
-	create_world_upgrade_53()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -127,6 +134,7 @@ func save_game():
 	cfg.set_value("player","career_xp",career_xp)
 	cfg.set_value("player","safe_driving_streak",safe_driving_streak)
 	cfg.set_value("player","total_fines_paid",total_fines_paid)
+	cfg.set_value("player","owned_cars",owned_cars)
 	cfg.save("user://autoboss.cfg")
 
 
@@ -140,6 +148,7 @@ func load_save():
 	career_xp=int(cfg.get_value("player","career_xp",0))
 	safe_driving_streak=int(cfg.get_value("player","safe_driving_streak",0))
 	total_fines_paid=int(cfg.get_value("player","total_fines_paid",0))
+	owned_cars=cfg.get_value("player","owned_cars",[true,false,false])
 	career_level=1+int(jobs_completed/3)
 
 
@@ -165,7 +174,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 5.3"
+	title.text="AUTO BOSS 6.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -181,7 +190,7 @@ func show_main_menu():
 	menu_button("SPIELSTAND SPEICHERN",Vector2(420,380),func(): save_game())
 
 	var stats=Label.new()
-	stats.text="Geld: "+str(money)+" €     Reputation: "+str(reputation)+"     Karriere-Level: "+str(career_level)+"     XP: "+str(career_xp)
+	stats.text="Geld: "+str(money)+" €     Reputation: "+str(reputation)+"     Level: "+str(career_level)+"     XP: "+str(career_xp)+"     Fahrzeuge: "+str(owned_cars.count(true))
 	stats.position=Vector2(430,490)
 	stats.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(stats)
@@ -228,21 +237,41 @@ func show_garage():
 		var c=cars[i]
 		var b=Button.new()
 		var prefix="✓ " if i==selected_car else ""
-		b.text=prefix+c["name"]+"   •   Vmax "+str(int(c["max_speed"]*3.6))+" km/h   •   Verbrauch "+str(c["fuel_factor"])+"x"
+		var status="BESITZ" if owned_cars[i] else str(car_prices[i])+" €"
+		b.text=prefix+c["name"]+"   •   Vmax "+str(int(c["max_speed"]*3.6))+" km/h   •   "+status
 		b.position=Vector2(385,150+i*90)
 		b.size=Vector2(510,65)
 		b.add_theme_font_size_override("font_size",20)
 
 		var idx=i
 		b.pressed.connect(func():
-			selected_car=idx
-			save_game()
-			show_garage()
+			buy_or_select_car(idx)
 		)
 		menu_root.add_child(b)
 
 	menu_button("← ZURÜCK",Vector2(420,500),func(): show_main_menu())
 
+
+
+func buy_or_select_car(idx):
+	if idx<0 or idx>=cars.size():
+		return
+	if owned_cars[idx]:
+		selected_car=idx
+		save_game()
+		show_garage()
+		return
+	var required_rep=int(cars[idx].get("rep",0))
+	if reputation<required_rep:
+		return
+	var price=int(car_prices[idx])
+	if money<price:
+		return
+	money-=price
+	owned_cars[idx]=true
+	selected_car=idx
+	save_game()
+	show_garage()
 
 func start_mission():
 	game_state="driving"
@@ -364,6 +393,9 @@ func finish_mission():
 	money+=reward
 	jobs_completed+=1
 	total_fines_paid+=fines_total
+	mission_no_fine_bonus=50 if fines_total==0 and damage<10 else 0
+	if mission_no_fine_bonus>0:
+		money+=mission_no_fine_bonus
 	if damage<10 and fines_total==0:
 		safe_driving_streak+=1
 		career_xp+=25
@@ -406,12 +438,13 @@ func show_settlement(
 		+routes[selected_route]["name"]
 	)
 
-	var real_profit=reward-service_costs-fines_total
+	var real_profit=reward+mission_no_fine_bonus-service_costs-fines_total
 
 	settlement_details.text=(
 		"Grundvergütung:        "+str(base_reward)+" €\n"
 		+"Sauberkeitsbonus:     +"+str(clean_bonus)+" €\n"
 		+"Tankbonus:            +"+str(fuel_bonus)+" €\n"
+		+"Sicherheitsprämie:    +"+str(mission_no_fine_bonus)+" €\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
 		+"Bußgelder:             -"+str(fines_total)+" €\n"
@@ -447,23 +480,20 @@ func spawn_traffic(z_pos):
 
 	add_child(t)
 
-	var colors=[
-		Color(0.75,0.08,0.08), Color(0.08,0.25,0.8), Color(0.85,0.85,0.85),
-		Color(0.05,0.05,0.06), Color(0.9,0.55,0.08), Color(0.15,0.65,0.25),
-		Color(0.45,0.12,0.55), Color(0.72,0.72,0.68)
-	]
-	var traffic_type=randi()%10
-	if traffic_type<2:
+	if randi()%5==0:
 		create_truck_model(t)
 		t.set_meta("traffic_speed",randf_range(14.0,22.0))
-	elif traffic_type<4:
-		create_van_model_53(t,colors[randi()%colors.size()])
-		t.set_meta("traffic_speed",randf_range(18.0,28.0))
-	elif traffic_type==4:
-		create_suv_model_53(t,colors[randi()%colors.size()])
 	else:
+		var colors=[
+			Color(0.75,0.08,0.08),
+			Color(0.08,0.25,0.8),
+			Color(0.85,0.85,0.85),
+			Color(0.05,0.05,0.06),
+			Color(0.9,0.55,0.08),
+			Color(0.15,0.65,0.25)
+		]
+
 		create_vehicle_model(t,colors[randi()%colors.size()])
-	add_ai_lights_53(t)
 
 	traffic.append(t)
 
@@ -624,11 +654,6 @@ func update_world_30(delta):
 		if is_instance_valid(lamp):
 			lamp.visible=is_night or weather_state=="Regen"
 
-	# 5.3: Straßenlaternen schalten sich nachts und bei Regen sichtbar ein.
-	for node in get_tree().get_nodes_in_group("road_lamps_53"):
-		if is_instance_valid(node):
-			node.light_energy=1.45 if is_night else (0.55 if weather_state=="Regen" else 0.0)
-
 	if rain_root!=null:
 		rain_root.visible=weather_state=="Regen"
 		rain_root.global_position=car.global_position+Vector3(0,7,-8)
@@ -678,6 +703,16 @@ func update_road_events_40(delta):
 		event_label.text=event_text
 	if fine_label!=null:
 		fine_label.text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
+	# 6.0: Fahndungs-/Polizeidruck bei extremem Rasen.
+	if kmh>speed_limit+45:
+		police_heat=min(5,police_heat+1)
+	elif kmh<=speed_limit+5:
+		police_heat=max(0,police_heat-1)
+	if police_heat>=4:
+		event_text="POLIZEI ACHTUNG • Tempo reduzieren!"
+		police_warning="POLIZEI"
+	else:
+		police_warning=""
 
 
 func create_rain_system():
@@ -805,14 +840,6 @@ func create_lamp(pos:Vector3):
 	station_box(root,Vector3(0.12,5.8,0.12),Vector3(0,2.9,0),Color(0.38,0.40,0.43))
 	station_box(root,Vector3(1.0,0.10,0.10),Vector3(-0.42,5.72,0),Color(0.38,0.40,0.43))
 	station_box(root,Vector3(0.42,0.12,0.28),Vector3(-0.88,5.65,0),Color(1.0,0.86,0.52))
-	var glow=OmniLight3D.new()
-	glow.position=Vector3(-0.88,5.35,0)
-	glow.omni_range=11.0
-	glow.light_energy=0.0
-	glow.light_color=Color(1.0,0.82,0.55)
-	glow.set_meta("road_lamp_53",true)
-	root.add_child(glow)
-	glow.add_to_group("road_lamps_53")
 
 
 
@@ -905,100 +932,6 @@ func create_rest_area_52(z_pos):
 	label.rotation_degrees.y=180
 	root.add_child(label)
 
-
-
-# AUTO BOSS 5.3 – WORLD UPGRADE
-func create_world_upgrade_53():
-	# Leitpfosten dichter gesetzt, damit Geschwindigkeit und Entfernung besser lesbar sind.
-	for z in range(-45,-2950,-45):
-		create_delineator_53(Vector3(-9.65,0,z),false)
-		create_delineator_53(Vector3(9.65,0,z-22),true)
-
-	# Markante Autobahnabschnitte statt einer komplett leeren Gerade.
-	create_construction_zone_53(-1080.0)
-	create_construction_zone_53(-2440.0)
-	create_rest_stop_detail_53(-1540.0)
-	create_rest_stop_detail_53(-2780.0)
-
-	# Zusätzliche Wegweiser in Fahrtrichtung.
-	create_motorway_sign(Vector3(0,0,-520),"A8  München  174 km")
-	create_motorway_sign(Vector3(0,0,-2020),"A3  Frankfurt  •  Köln")
-
-
-func create_delineator_53(pos:Vector3,right_side:bool):
-	var root=Node3D.new()
-	root.position=pos
-	add_child(root)
-	station_box(root,Vector3(0.16,0.95,0.12),Vector3(0,0.48,0),Color(0.94,0.94,0.92))
-	var reflector_x=0.07 if right_side else -0.07
-	station_box(root,Vector3(0.05,0.18,0.13),Vector3(reflector_x,0.68,-0.02),Color(0.06,0.06,0.06))
-
-
-func create_construction_zone_53(z_pos:float):
-	var root=Node3D.new()
-	root.position=Vector3(0,0,z_pos)
-	add_child(root)
-	for i in range(9):
-		var z=-float(i)*7.0
-		station_box(root,Vector3(0.28,0.85,0.28),Vector3(7.35,0.43,z),Color(0.95,0.45,0.05))
-		station_box(root,Vector3(0.36,0.18,0.30),Vector3(7.35,0.72,z),Color.WHITE)
-	station_box(root,Vector3(7.0,2.8,5.0),Vector3(14.0,1.4,-25.0),Color(0.62,0.60,0.52))
-	var sign=Label3D.new()
-	sign.text="BAUSTELLE  •  80"
-	sign.font_size=28
-	sign.outline_size=5
-	sign.position=Vector3(10.0,3.0,5.0)
-	sign.rotation_degrees.y=180
-	root.add_child(sign)
-
-
-func create_rest_stop_detail_53(z_pos:float):
-	var root=Node3D.new()
-	root.position=Vector3(-21,0,z_pos)
-	add_child(root)
-	station_box(root,Vector3(15,0.16,32),Vector3(0,0.05,0),Color(0.20,0.21,0.23))
-	station_box(root,Vector3(9,3.5,7),Vector3(-1,1.75,8),Color(0.72,0.70,0.64))
-	station_box(root,Vector3(9.5,0.55,7.5),Vector3(-1,3.7,8),Color(0.24,0.26,0.28))
-	for x in [-3.0,0.0,3.0]:
-		station_box(root,Vector3(1.5,0.9,0.10),Vector3(x,2.0,4.45),Color(0.12,0.32,0.48))
-	var label=Label3D.new()
-	label.text="P  •  RASTPLATZ"
-	label.font_size=30
-	label.outline_size=5
-	label.position=Vector3(0,4.7,-4)
-	label.rotation_degrees.y=180
-	root.add_child(label)
-
-
-func create_van_model_53(parent,color_value):
-	station_box(parent,Vector3(2.15,1.65,4.7),Vector3(0,1.05,0),color_value)
-	station_box(parent,Vector3(1.75,0.62,0.08),Vector3(0,1.48,-2.37),Color(0.12,0.28,0.38))
-	for x in [-0.92,0.92]:
-		for z in [-1.45,1.45]:
-			var wheel=MeshInstance3D.new()
-			var wm=CylinderMesh.new()
-			wm.top_radius=0.38; wm.bottom_radius=0.38; wm.height=0.28
-			wheel.mesh=wm; wheel.position=Vector3(x,0.38,z); wheel.rotation_degrees.z=90
-			wheel.material_override=material(Color(0.02,0.02,0.02)); parent.add_child(wheel)
-
-
-func create_suv_model_53(parent,color_value):
-	station_box(parent,Vector3(2.15,1.15,4.3),Vector3(0,0.88,0),color_value)
-	station_box(parent,Vector3(1.85,0.72,2.25),Vector3(0,1.55,0.25),color_value.darkened(0.08))
-	station_box(parent,Vector3(1.65,0.50,0.08),Vector3(0,1.58,-1.95),Color(0.10,0.25,0.36))
-	for x in [-0.96,0.96]:
-		for z in [-1.35,1.35]:
-			var wheel=MeshInstance3D.new(); var wm=CylinderMesh.new()
-			wm.top_radius=0.42; wm.bottom_radius=0.42; wm.height=0.30
-			wheel.mesh=wm; wheel.position=Vector3(x,0.42,z); wheel.rotation_degrees.z=90
-			wheel.material_override=material(Color(0.02,0.02,0.02)); parent.add_child(wheel)
-
-
-func add_ai_lights_53(parent):
-	# Rücklichter geben nachts Orientierung; echte Lichter bleiben bewusst günstig für Mobile.
-	for x in [-0.68,0.68]:
-		light_box(parent,Vector3(x,0.72,2.18),Color(0.95,0.03,0.02))
-		light_box(parent,Vector3(x,0.72,-2.18),Color(1.0,0.88,0.62))
 
 func rotated_box(parent,size_value,pos,color_value,y_rotation):
 	var obj=MeshInstance3D.new()
@@ -1510,7 +1443,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 5.2\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 6.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
