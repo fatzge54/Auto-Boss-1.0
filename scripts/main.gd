@@ -247,7 +247,11 @@ func company_daily_power():
 	return staff_level*35+fleet_level*55+office_level*25
 
 func buy_company_upgrade(kind):
-	var level=staff_level if kind=="staff" else (fleet_level if kind=="fleet" else office_level)
+	var level=office_level
+	if kind=="staff":
+		level=staff_level
+	elif kind=="fleet":
+		level=fleet_level
 	if level>=5:
 		return
 	var cost=company_upgrade_cost(level)
@@ -266,7 +270,7 @@ func buy_company_upgrade(kind):
 func show_company_hq():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 12.0 • FIRMENZENTRALE"
+	title.text="AUTO BOSS 12.0.1 • FIRMENZENTRALE"
 	title.position=Vector2(380,34)
 	title.add_theme_font_size_override("font_size",34)
 	menu_root.add_child(title)
@@ -305,7 +309,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 12.0"
+	title.text="AUTO BOSS 12.0.1"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -1816,7 +1820,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 12.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 12.0.1\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -1868,7 +1872,7 @@ func create_world_upgrade_120():
 	create_motorway_sign(Vector3(0,0,-720),"AUTO BOSS LOGISTICS • NORD")
 	create_motorway_sign(Vector3(0,0,-1980),"TUNNEL • 120 km/h")
 
-func create_logistics_park_120(z_pos:float, side:float):
+func create_logistics_park_120(z_pos,side):
 	var root=Node3D.new()
 	root.position=Vector3(side*24.0,0,z_pos)
 	add_child(root)
@@ -1882,7 +1886,7 @@ func create_logistics_park_120(z_pos:float, side:float):
 	sign.position=Vector3(4.0,6.5,-18.0)
 	root.add_child(sign)
 
-func create_tunnel_portal_120(z_pos:float):
+func create_tunnel_portal_120(z_pos):
 	station_box(self,Vector3(2.0,6.0,1.0),Vector3(-9.0,3.0,z_pos),Color(0.30,0.31,0.33))
 	station_box(self,Vector3(2.0,6.0,1.0),Vector3(9.0,3.0,z_pos),Color(0.30,0.31,0.33))
 	station_box(self,Vector3(20.0,1.2,1.0),Vector3(0,6.0,z_pos),Color(0.30,0.31,0.33))
