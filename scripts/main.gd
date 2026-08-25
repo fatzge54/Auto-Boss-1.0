@@ -75,7 +75,7 @@ var jobs_completed=0
 var career_xp=0
 var safe_driving_streak=0
 var total_fines_paid=0
-# AUTO BOSS 6.6 systems
+# AUTO BOSS 7.0 systems
 var fines_total=0
 var speed_limit=130
 var camera_cooldown=0.0
@@ -90,6 +90,10 @@ var streak_bonus=0
 var discipline_bonus=0
 var long_distance_bonus=0
 var mission_xp_earned=0
+var engine_upgrade=0
+var brake_upgrade=0
+var eco_upgrade=0
+var perfect_jobs=0
 
 
 func _ready():
@@ -135,6 +139,10 @@ func save_game():
 	cfg.set_value("player","career_xp",career_xp)
 	cfg.set_value("player","safe_driving_streak",safe_driving_streak)
 	cfg.set_value("player","total_fines_paid",total_fines_paid)
+	cfg.set_value("player","engine_upgrade",engine_upgrade)
+	cfg.set_value("player","brake_upgrade",brake_upgrade)
+	cfg.set_value("player","eco_upgrade",eco_upgrade)
+	cfg.set_value("player","perfect_jobs",perfect_jobs)
 	cfg.save("user://autoboss.cfg")
 
 
@@ -148,6 +156,10 @@ func load_save():
 	career_xp=int(cfg.get_value("player","career_xp",0))
 	safe_driving_streak=int(cfg.get_value("player","safe_driving_streak",0))
 	total_fines_paid=int(cfg.get_value("player","total_fines_paid",0))
+	engine_upgrade=int(cfg.get_value("player","engine_upgrade",0))
+	brake_upgrade=int(cfg.get_value("player","brake_upgrade",0))
+	eco_upgrade=int(cfg.get_value("player","eco_upgrade",0))
+	perfect_jobs=int(cfg.get_value("player","perfect_jobs",0))
 	career_level=1+int(jobs_completed/3)
 
 
@@ -190,13 +202,13 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 6.6"
+	title.text="AUTO BOSS 7.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
 
 	var sub=Label.new()
-	sub.text="Fahrzeugüberführung • Karriere • Auftragsklassen"
+	sub.text="Fahrzeugüberführung • Karriere • Tuning • Auftragsklassen"
 	sub.position=Vector2(455,130)
 	sub.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(sub)
@@ -206,7 +218,7 @@ func show_main_menu():
 	menu_button("SPIELSTAND SPEICHERN",Vector2(420,380),func(): save_game())
 
 	var stats=Label.new()
-	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   XP: "+str(career_xp)+"   •   Safe-Serie: "+str(safe_driving_streak)
+	stats.text="Geld: "+str(money)+" €   •   Rep: "+str(reputation)+"   •   Rang: "+career_rank_name()+"   •   Jobs: "+str(jobs_completed)+"   •   XP: "+str(career_xp)+"   •   Perfekt: "+str(perfect_jobs)
 	stats.position=Vector2(430,490)
 	stats.add_theme_font_size_override("font_size",22)
 	menu_root.add_child(stats)
@@ -240,13 +252,30 @@ func show_routes():
 
 	menu_button("← ZURÜCK",Vector2(420,560),func(): show_main_menu())
 
+func upgrade_cost(level):
+	return 450+level*350
+
+func buy_upgrade(kind):
+	var level=engine_upgrade if kind=="engine" else (brake_upgrade if kind=="brake" else eco_upgrade)
+	if level>=3:
+		return
+	var cost=upgrade_cost(level)
+	if money<cost:
+		return
+	money-=cost
+	if kind=="engine": engine_upgrade+=1
+	elif kind=="brake": brake_upgrade+=1
+	else: eco_upgrade+=1
+	save_game()
+	show_garage()
+
 func show_garage():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="GARAGE"
-	title.position=Vector2(535,55)
-	title.add_theme_font_size_override("font_size",36)
+	title.text="GARAGE 7.0 • FUHRPARK & TUNING"
+	title.position=Vector2(410,35)
+	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
 
 	for i in range(cars.size()):
@@ -254,10 +283,9 @@ func show_garage():
 		var b=Button.new()
 		var prefix="✓ " if i==selected_car else ""
 		b.text=prefix+c["name"]+"   •   Vmax "+str(int(c["max_speed"]*3.6))+" km/h   •   Verbrauch "+str(c["fuel_factor"])+"x"
-		b.position=Vector2(385,150+i*90)
-		b.size=Vector2(510,65)
-		b.add_theme_font_size_override("font_size",20)
-
+		b.position=Vector2(330,95+i*62)
+		b.size=Vector2(620,52)
+		b.add_theme_font_size_override("font_size",18)
 		var idx=i
 		b.pressed.connect(func():
 			selected_car=idx
@@ -266,7 +294,30 @@ func show_garage():
 		)
 		menu_root.add_child(b)
 
-	menu_button("← ZURÜCK",Vector2(420,500),func(): show_main_menu())
+	var upgrades=[
+		["engine","MOTOR",engine_upgrade,"mehr Beschleunigung & Vmax"],
+		["brake","BREMSEN",brake_upgrade,"kürzerer Bremsweg"],
+		["eco","ECO",eco_upgrade,"weniger Verbrauch"]
+	]
+	for i in range(upgrades.size()):
+		var u=upgrades[i]
+		var level=int(u[2])
+		var b=Button.new()
+		var price_text="MAX" if level>=3 else str(upgrade_cost(level))+" €"
+		b.text=str(u[1])+"  Stufe "+str(level)+"/3  •  "+str(u[3])+"  •  "+price_text
+		b.position=Vector2(300,310+i*60)
+		b.size=Vector2(680,50)
+		b.disabled=level>=3 or (level<3 and money<upgrade_cost(level))
+		var kind=str(u[0])
+		b.pressed.connect(func(): buy_upgrade(kind))
+		menu_root.add_child(b)
+
+	var cash=Label.new()
+	cash.text="Werkstatt-Konto: "+str(money)+" €"
+	cash.position=Vector2(535,505)
+	cash.add_theme_font_size_override("font_size",18)
+	menu_root.add_child(cash)
+	menu_button("← ZURÜCK",Vector2(420,550),func(): show_main_menu())
 
 
 func start_mission():
@@ -316,10 +367,10 @@ func update_player(delta):
 	if left: steer-=1.0
 	if right: steer+=1.0
 
-	var max_speed=float(cars[selected_car]["max_speed"])
-	var accel=float(cars[selected_car]["accel"])
-	var brake_power=float(cars[selected_car]["brake"])
-	var fuel_factor=float(cars[selected_car]["fuel_factor"])
+	var max_speed=float(cars[selected_car]["max_speed"])*(1.0+0.035*engine_upgrade)
+	var accel=float(cars[selected_car]["accel"])*(1.0+0.10*engine_upgrade)
+	var brake_power=float(cars[selected_car]["brake"])*(1.0+0.12*brake_upgrade)
+	var fuel_factor=float(cars[selected_car]["fuel_factor"])*(1.0-0.10*eco_upgrade)
 
 	if gas and fuel>0:
 		speed=min(speed+accel*delta,max_speed)
@@ -404,6 +455,7 @@ func finish_mission():
 	mission_xp_earned=10
 	if damage<10 and fines_total==0:
 		safe_driving_streak+=1
+		perfect_jobs+=1
 		mission_xp_earned+=25
 	else:
 		safe_driving_streak=0
@@ -468,7 +520,9 @@ func show_settlement(
 		+"Reputation:            "+str(reputation)+"\n"
 		+"Karriere-Rang:         "+career_rank_name()+"\n"
 		+"Auftragsklasse:        "+contract_class_name()+"\n"
-		+"XP dieser Fahrt:       +"+str(mission_xp_earned)
+		+"XP dieser Fahrt:       +"+str(mission_xp_earned)+"\n"
+		+"Perfekte Fahrten:      "+str(perfect_jobs)+"\n"
+		+"Tuning M/B/E:          "+str(engine_upgrade)+"/"+str(brake_upgrade)+"/"+str(eco_upgrade)
 	)
 
 
@@ -1571,7 +1625,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 6.6\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 7.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
