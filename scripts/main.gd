@@ -106,6 +106,8 @@ var company_fleet=0
 var company_office=0
 var company_jobs=0
 var company_bonus_last=0
+var company_income_total=0
+var company_passive_last=0
 var navigation_label
 var destination_bonus=0
 var route_stage="AUTOBAHN"
@@ -166,6 +168,7 @@ func save_game():
 	cfg.set_value("player","company_fleet",company_fleet)
 	cfg.set_value("player","company_office",company_office)
 	cfg.set_value("player","company_jobs",company_jobs)
+	cfg.set_value("player","company_income_total",company_income_total)
 	cfg.save("user://autoboss.cfg")
 
 
@@ -187,6 +190,7 @@ func load_save():
 	company_fleet=int(cfg.get_value("player","company_fleet",0))
 	company_office=int(cfg.get_value("player","company_office",0))
 	company_jobs=int(cfg.get_value("player","company_jobs",0))
+	company_income_total=int(cfg.get_value("player","company_income_total",0))
 	career_level=1+int(jobs_completed/3)
 
 
@@ -232,6 +236,25 @@ func company_name():
 	return "STARTER TRANSFER"
 
 
+
+func company_auto_capacity_122():
+	return min(company_staff,company_fleet)
+
+func company_passive_income_122():
+	var teams=company_auto_capacity_122()
+	if teams<=0:
+		return 0
+	var base=teams*(85+company_office*25)
+	return int(round(base*(1.0+float(company_office)*0.10)))
+
+func run_company_jobs_122():
+	var teams=company_auto_capacity_122()
+	company_passive_last=company_passive_income_122()
+	if teams>0:
+		company_jobs+=teams
+		company_income_total+=company_passive_last
+		money+=company_passive_last
+
 func company_level_1202():
 	return 1+company_staff+company_fleet+company_office
 
@@ -267,40 +290,41 @@ func buy_company_upgrade_1202(kind):
 func show_company_hq_1202():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 12.1.0 • FIRMENZENTRALE"
-	title.position=Vector2(350,45)
+	title.text="AUTO BOSS 12.2.0 • FIRMENZENTRALE"
+	title.position=Vector2(335,35)
 	title.add_theme_font_size_override("font_size",34)
 	menu_root.add_child(title)
 
 	var info=Label.new()
-	info.text="Firmenstufe: "+str(company_level_1202())+"   •   Firmenaufträge: "+str(company_jobs)+"   •   Bonus/Fahrt: "+str(company_bonus_1202())+" €"
-	info.position=Vector2(320,110)
-	info.add_theme_font_size_override("font_size",19)
+	info.text="Firmenstufe: "+str(company_level_1202())+"   •   Firmenaufträge: "+str(company_jobs)+"   •   Firmengewinn: "+str(company_income_total)+" €"
+	info.position=Vector2(275,95)
+	info.add_theme_font_size_override("font_size",18)
 	menu_root.add_child(info)
 
+	var passive=Label.new()
+	passive.text="AUTO-BETRIEB: "+str(company_auto_capacity_122())+" Teams   •   Nächste Fahrt: +"+str(company_passive_income_122())+" €   •   Bonus eigene Fahrt: +"+str(company_bonus_1202())+" €"
+	passive.position=Vector2(255,130)
+	passive.add_theme_font_size_override("font_size",17)
+	menu_root.add_child(passive)
+
 	var b1=Button.new()
-	b1.text="MITARBEITER  Stufe "+str(company_staff)+"/5  •  "+str(company_upgrade_cost_1202(company_staff))+" €"
-	b1.position=Vector2(350,205)
-	b1.size=Vector2(580,60)
-	b1.disabled=company_staff>=5
-	b1.pressed.connect(func(): buy_company_upgrade_1202("staff"))
-	menu_root.add_child(b1)
+	b1.text="MITARBEITER  "+str(company_staff)+"/5  •  Fahrer-Team erweitern  •  "+str(company_upgrade_cost_1202(company_staff))+" €"
+	b1.position=Vector2(325,190); b1.size=Vector2(630,60); b1.disabled=company_staff>=5
+	b1.pressed.connect(func(): buy_company_upgrade_1202("staff")); menu_root.add_child(b1)
 
 	var b2=Button.new()
-	b2.text="FIRMENFLOTTE  Stufe "+str(company_fleet)+"/5  •  "+str(company_upgrade_cost_1202(company_fleet))+" €"
-	b2.position=Vector2(350,285)
-	b2.size=Vector2(580,60)
-	b2.disabled=company_fleet>=5
-	b2.pressed.connect(func(): buy_company_upgrade_1202("fleet"))
-	menu_root.add_child(b2)
+	b2.text="FIRMENFLOTTE  "+str(company_fleet)+"/5  •  Firmenfahrzeug kaufen  •  "+str(company_upgrade_cost_1202(company_fleet))+" €"
+	b2.position=Vector2(325,270); b2.size=Vector2(630,60); b2.disabled=company_fleet>=5
+	b2.pressed.connect(func(): buy_company_upgrade_1202("fleet")); menu_root.add_child(b2)
 
 	var b3=Button.new()
-	b3.text="DISPOSITION  Stufe "+str(company_office)+"/5  •  "+str(company_upgrade_cost_1202(company_office))+" €"
-	b3.position=Vector2(350,365)
-	b3.size=Vector2(580,60)
-	b3.disabled=company_office>=5
-	b3.pressed.connect(func(): buy_company_upgrade_1202("office"))
-	menu_root.add_child(b3)
+	b3.text="DISPOSITION  "+str(company_office)+"/5  •  Ertrag pro Team steigern  •  "+str(company_upgrade_cost_1202(company_office))+" €"
+	b3.position=Vector2(325,350); b3.size=Vector2(630,60); b3.disabled=company_office>=5
+	b3.pressed.connect(func(): buy_company_upgrade_1202("office")); menu_root.add_child(b3)
+
+	var hint=Label.new()
+	hint.text="1 Mitarbeiter + 1 Firmenfahrzeug = 1 automatisches Team. Firmenjobs laufen nach jeder eigenen Lieferung."
+	hint.position=Vector2(265,435); hint.add_theme_font_size_override("font_size",16); menu_root.add_child(hint)
 
 	menu_button("← ZURÜCK",Vector2(420,510),func(): show_main_menu())
 
@@ -312,7 +336,7 @@ func show_main_menu():
 	clear_menu()
 
 	var title=Label.new()
-	title.text="AUTO BOSS 12.1.0"
+	title.text="AUTO BOSS 12.2.0"
 	title.position=Vector2(430,70)
 	title.add_theme_font_size_override("font_size",46)
 	menu_root.add_child(title)
@@ -592,7 +616,7 @@ func finish_mission():
 		streak_bonus=min(safe_driving_streak*25,125)
 	company_bonus_last=company_bonus_1202()
 	money+=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus+company_bonus_last
-	company_jobs+=company_fleet
+	run_company_jobs_122()
 	jobs_completed+=1
 	total_fines_paid+=fines_total
 	mission_xp_earned=10
@@ -645,7 +669,7 @@ func show_settlement(
 		+routes[selected_route]["name"]
 	)
 
-	var real_profit=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus+company_bonus_last-service_costs-fines_total
+	var real_profit=reward+clean_mission_bonus+streak_bonus+discipline_bonus+long_distance_bonus+company_bonus_last+company_passive_last-service_costs-fines_total
 
 	settlement_details.text=(
 		"Grundvergütung:        "+str(base_reward)+" €\n"
@@ -656,6 +680,7 @@ func show_settlement(
 		+"Disziplinbonus:        +"+str(discipline_bonus)+" €\n"
 		+"Langstreckenbonus:     +"+str(long_distance_bonus)+" €\n"
 		+"Firmenbonus:           +"+str(company_bonus_last)+" €\n"
+		+"Firmen-Autoaufträge:   +"+str(company_passive_last)+" €\n"
 		+"Schaden-Abzug:        -"+str(damage_penalty)+" €\n"
 		+"Tank/Werkstatt:       -"+str(service_costs)+" €\n"
 		+"Bußgelder:             -"+str(fines_total)+" €\n"
@@ -1820,7 +1845,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 12.1.0\n"+str(int(speed*3.6))+" km/h"
+	speed_label.text="AUTO BOSS 12.2.0\n"+str(int(speed*3.6))+" km/h"
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
