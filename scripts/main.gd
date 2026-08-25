@@ -146,6 +146,7 @@ func _ready():
 	create_road_graphics_150()
 	create_visual_revolution_160()
 	create_graphics_overhaul_170()
+	create_world_revolution_180()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -1883,7 +1884,7 @@ func rebuild_player():
 
 func create_vehicle_model(parent,color_value):
 	# 15.0: komplett neu gezeichnetes, niedrigeres Fahrzeug mit klarer Silhouette.
-	create_vehicle_model_150(parent,color_value)
+	create_vehicle_model_180(parent,color_value)
 	return
 
 func create_vehicle_model_legacy(parent,color_value):
@@ -2527,3 +2528,110 @@ func create_logistics_park_170(pos:Vector3):
 	for x in [-7.5,-2.5,2.5,7.5]:
 		station_box(root,Vector3(3.3,2.5,0.16),Vector3(x,1.55,-9.08),Color(0.10,0.16,0.20))
 	var label=Label3D.new(); label.text="AUTO BOSS LOGISTICS"; label.font_size=32; label.outline_size=5; label.position=Vector3(0,4.3,-9.18); root.add_child(label)
+
+
+# AUTO BOSS 18.0 – CAR & WORLD REVOLUTION
+# Visueller Layer über 17.0. Karriere, Physik und Savegame bleiben kompatibel.
+func create_world_revolution_180():
+	# Etwas erwachseneres Licht: weniger Neon-Grün, mehr natürliche Fernwirkung.
+	if world_env != null:
+		world_env.ambient_light_energy=0.72
+		world_env.fog_density=0.00115
+		world_env.fog_light_color=Color(0.68,0.76,0.80)
+	if sun_light != null:
+		sun_light.light_energy=1.18
+		sun_light.light_color=Color(1.0,0.96,0.89)
+
+	# Mittelstreifen/Schulter optisch aufwerten: Drainage, Fugen, Katzenaugen.
+	for z in range(-30,-2980,-30):
+		station_box(self,Vector3(0.12,0.035,0.42),Vector3(-7.82,0.235,z),Color(0.93,0.80,0.35))
+		station_box(self,Vector3(0.12,0.035,0.42),Vector3(7.82,0.235,z-15),Color(0.93,0.80,0.35))
+	for z in range(-110,-2920,-220):
+		station_box(self,Vector3(14.6,0.008,0.055),Vector3(0,0.218,z),Color(0.035,0.038,0.043))
+
+	# Große deutsche Schilderbrücken mit mehreren Tafeln statt leerer Balken.
+	create_sign_gantry_180(-520.0,"A 81  HEILBRONN","A 6  MANNHEIM")
+	create_sign_gantry_180(-1450.0,"A 5  FRANKFURT","A 3  KÖLN")
+	create_sign_gantry_180(-2350.0,"FRANKFURT  38 km","KASSEL  182 km")
+
+	# Landschafts-Landmarks: Felder, Solaranlage, Rastplatz und Industrie.
+	create_field_180(Vector3(-34,0,-430),Color(0.42,0.48,0.12))
+	create_field_180(Vector3(36,0,-1780),Color(0.52,0.43,0.13))
+	create_solar_farm_180(Vector3(-34,0,-1880))
+	create_rest_area_180(Vector3(25,0,-760))
+	create_industry_180(Vector3(-34,0,-2650))
+
+func create_sign_gantry_180(z_pos:float,left_text:String,right_text:String):
+	var root=Node3D.new(); root.position=Vector3(0,0,z_pos); add_child(root)
+	for x in [-8.7,8.7]:
+		station_box(root,Vector3(0.22,6.0,0.22),Vector3(x,3.0,0),Color(0.46,0.49,0.51))
+	station_box(root,Vector3(17.6,0.22,0.22),Vector3(0,5.95,0),Color(0.52,0.55,0.57))
+	for data in [[-4.15,left_text],[4.15,right_text]]:
+		station_box(root,Vector3(7.5,1.75,0.16),Vector3(float(data[0]),5.0,-0.15),Color(0.015,0.22,0.48))
+		var lab=Label3D.new(); lab.text=str(data[1]); lab.font_size=28; lab.outline_size=5; lab.position=Vector3(float(data[0]),5.0,-0.27); lab.rotation_degrees.y=180; root.add_child(lab)
+
+func create_field_180(pos:Vector3,color_value:Color):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	station_box(root,Vector3(30,0.06,130),Vector3(0,0.02,0),color_value)
+	for x in range(-14,15,3):
+		station_box(root,Vector3(0.35,0.035,128),Vector3(float(x),0.07,0),color_value.lightened(0.08))
+
+func create_solar_farm_180(pos:Vector3):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	for x in [-9.0,-3.0,3.0,9.0]:
+		for z in [-22.0,-11.0,0.0,11.0,22.0]:
+			station_box(root,Vector3(4.6,0.10,2.5),Vector3(x,1.0,z),Color(0.025,0.12,0.24))
+			station_box(root,Vector3(0.12,1.0,0.12),Vector3(x,0.5,z),Color(0.42,0.45,0.47))
+
+func create_rest_area_180(pos:Vector3):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	station_box(root,Vector3(24,0.10,44),Vector3(0,0.08,0),Color(0.18,0.19,0.20))
+	station_box(root,Vector3(15,4.2,8),Vector3(2,2.1,-12),Color(0.74,0.72,0.66))
+	station_box(root,Vector3(15.3,0.28,8.3),Vector3(2,4.32,-12),Color(0.12,0.14,0.16))
+	var lab=Label3D.new(); lab.text="AUTO BOSS  RASTPARK"; lab.font_size=30; lab.outline_size=5; lab.position=Vector3(2,3.1,-16.15); root.add_child(lab)
+	for z in [-2.0,6.0,14.0]:
+		station_box(root,Vector3(5.2,0.06,0.14),Vector3(-5,0.16,z),Color(0.90,0.90,0.88))
+
+func create_industry_180(pos:Vector3):
+	var root=Node3D.new(); root.position=pos; add_child(root)
+	for data in [[-10.0,6.0,10.0],[2.0,8.0,14.0],[12.0,5.0,-7.0]]:
+		station_box(root,Vector3(10,float(data[1]),14),Vector3(float(data[0]),float(data[1])/2.0,float(data[2])),Color(0.42,0.46,0.48))
+	for x in [-12.0,10.0]:
+		var stack=MeshInstance3D.new(); var cm=CylinderMesh.new(); cm.top_radius=0.7; cm.bottom_radius=1.0; cm.height=12.0; stack.mesh=cm; stack.position=Vector3(x,6,-14); stack.material_override=material(Color(0.56,0.57,0.56)); root.add_child(stack)
+
+func create_vehicle_model_180(parent,color_value):
+	# 18.0: breiter, flacher, deutlich mehr Pkw-Details und weniger Block-Look.
+	station_box(parent,Vector3(2.02,0.16,3.75),Vector3(0,0.42,0.08),Color(0.018,0.021,0.026))
+	station_box(parent,Vector3(1.96,0.42,3.72),Vector3(0,0.68,0.02),color_value.darkened(0.08))
+	station_box(parent,Vector3(1.88,0.30,3.95),Vector3(0,0.91,-0.05),color_value)
+	# Motorhaube, Kofferraum und Schulterlinie
+	station_box(parent,Vector3(1.80,0.18,1.28),Vector3(0,1.10,-1.47),color_value.lightened(0.055))
+	station_box(parent,Vector3(1.82,0.17,0.92),Vector3(0,1.05,1.55),color_value.darkened(0.025))
+	station_box(parent,Vector3(1.92,0.055,2.65),Vector3(0,1.03,0.10),color_value.lightened(0.09))
+	# Dach + dunkles Panorama-Glas
+	station_box(parent,Vector3(1.55,0.14,1.82),Vector3(0,1.61,0.18),color_value.darkened(0.14))
+	station_box(parent,Vector3(1.49,0.055,1.48),Vector3(0,1.70,0.18),Color(0.035,0.065,0.09))
+	rotated_box(parent,Vector3(1.52,0.70,0.07),Vector3(0,1.38,-0.77),Color(0.035,0.075,0.105),0.0)
+	rotated_box(parent,Vector3(1.52,0.55,0.07),Vector3(0,1.35,0.98),Color(0.035,0.070,0.095),0.0)
+	for x in [-0.82,0.82]:
+		station_box(parent,Vector3(0.055,0.50,1.35),Vector3(x,1.35,0.13),Color(0.035,0.075,0.105))
+	# Front/Heck: Grill, Diffusor, Kennzeichen, LED-Bänder
+	station_box(parent,Vector3(1.88,0.16,0.13),Vector3(0,0.52,-2.02),Color(0.025,0.028,0.032))
+	station_box(parent,Vector3(1.05,0.26,0.055),Vector3(0,0.69,-2.10),Color(0.012,0.016,0.020))
+	station_box(parent,Vector3(0.44,0.14,0.035),Vector3(0,0.49,-2.115),Color(0.90,0.90,0.84))
+	station_box(parent,Vector3(1.90,0.17,0.13),Vector3(0,0.52,2.02),Color(0.025,0.028,0.032))
+	station_box(parent,Vector3(1.28,0.07,0.045),Vector3(0,0.86,2.095),Color(0.80,0.015,0.012))
+	for x in [-0.62,0.62]:
+		light_box(parent,Vector3(x,0.88,-2.09),Color(0.88,0.96,1.0))
+		light_box(parent,Vector3(x,0.82,2.09),Color(1.0,0.025,0.018))
+	# Spiegel und Türgriffe
+	for x in [-1.02,1.02]:
+		station_box(parent,Vector3(0.19,0.10,0.30),Vector3(x,1.27,-0.58),Color(0.025,0.03,0.035))
+	for x in [-0.94,0.94]:
+		station_box(parent,Vector3(0.035,0.055,0.34),Vector3(x,1.08,0.25),Color(0.60,0.62,0.63))
+	# Räder mit Felgen und Nabenkern
+	for wx in [-1.0,1.0]:
+		for wz in [-1.28,1.28]:
+			var wheel=MeshInstance3D.new(); var wm=CylinderMesh.new(); wm.top_radius=0.40; wm.bottom_radius=0.40; wm.height=0.31; wheel.mesh=wm; wheel.position=Vector3(wx,0.45,wz); wheel.rotation_degrees=Vector3(0,0,90); wheel.material_override=material(Color(0.012,0.014,0.017)); parent.add_child(wheel)
+			var rim=MeshInstance3D.new(); var rm=CylinderMesh.new(); rm.top_radius=0.245; rm.bottom_radius=0.245; rm.height=0.325; rim.mesh=rm; rim.position=Vector3(wx,0.45,wz); rim.rotation_degrees=Vector3(0,0,90); rim.material_override=material(Color(0.48,0.51,0.55)); parent.add_child(rim)
+			var hub=MeshInstance3D.new(); var hm=CylinderMesh.new(); hm.top_radius=0.075; hm.bottom_radius=0.075; hm.height=0.335; hub.mesh=hm; hub.position=Vector3(wx,0.45,wz); hub.rotation_degrees=Vector3(0,0,90); hub.material_override=material(Color(0.10,0.11,0.12)); parent.add_child(hub)
