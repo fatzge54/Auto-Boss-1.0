@@ -147,6 +147,7 @@ func _ready():
 	create_visual_revolution_160()
 	create_graphics_overhaul_170()
 	create_world_revolution_180()
+	create_world_expansion_190()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -486,7 +487,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 17.0 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 19.0 • DEUTSCHLAND EMPIRE"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -531,7 +532,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 17.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 19.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -630,7 +631,7 @@ func show_main_menu():
 	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("17.0  •  GRAPHICS OVERHAUL",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("19.0  •  AUTOBAHN EVOLUTION",Vector2(50,94),16,Color(0.16,0.70,1.0))
 	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
@@ -718,7 +719,7 @@ func show_garage():
 	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 17.0 • PERFORMANCE STUDIO"
+	title.text="GARAGE 19.0 • PERFORMANCE STUDIO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -1069,6 +1070,7 @@ func spawn_traffic(z_pos):
 	else:
 		create_vehicle_model(t,colors[randi()%colors.size()])
 	add_ai_lights_53(t)
+	add_traffic_detail_190(t,traffic_type)
 
 	traffic.append(t)
 
@@ -2178,7 +2180,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 17.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 19.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2635,3 +2637,55 @@ func create_vehicle_model_180(parent,color_value):
 			var wheel=MeshInstance3D.new(); var wm=CylinderMesh.new(); wm.top_radius=0.40; wm.bottom_radius=0.40; wm.height=0.31; wheel.mesh=wm; wheel.position=Vector3(wx,0.45,wz); wheel.rotation_degrees=Vector3(0,0,90); wheel.material_override=material(Color(0.012,0.014,0.017)); parent.add_child(wheel)
 			var rim=MeshInstance3D.new(); var rm=CylinderMesh.new(); rm.top_radius=0.245; rm.bottom_radius=0.245; rm.height=0.325; rim.mesh=rm; rim.position=Vector3(wx,0.45,wz); rim.rotation_degrees=Vector3(0,0,90); rim.material_override=material(Color(0.48,0.51,0.55)); parent.add_child(rim)
 			var hub=MeshInstance3D.new(); var hm=CylinderMesh.new(); hm.top_radius=0.075; hm.bottom_radius=0.075; hm.height=0.335; hub.mesh=hm; hub.position=Vector3(wx,0.45,wz); hub.rotation_degrees=Vector3(0,0,90); hub.material_override=material(Color(0.10,0.11,0.12)); parent.add_child(hub)
+
+
+# AUTO BOSS 19.0 – AUTOBAHN EVOLUTION
+# Erweiterung auf Basis von 18.0: echte Ausfahrt-Silhouetten, Rastplatz-Zufahrten,
+# dichtere Straßenmöblierung und zusätzliche Details an jedem KI-Fahrzeug.
+func create_world_expansion_190():
+	create_exit_scene_190(-980.0,"AUSFAHRT 14","HEILBRONN")
+	create_exit_scene_190(-2050.0,"AUSFAHRT 22","FRANKFURT-SÜD")
+	create_rest_entry_190(-720.0,"RASTPARK  1000 m")
+	create_rest_entry_190(-1660.0,"TANKEN  •  SERVICE  800 m")
+	for z in range(-180,-2900,-260):
+		create_emergency_marker_190(float(z))
+
+func create_exit_scene_190(z_pos:float,exit_name:String,destination:String):
+	var root=Node3D.new()
+	root.position=Vector3(0,0,z_pos)
+	add_child(root)
+	# Ausfädelungsstreifen rechts – optisch vom Hauptfahrstreifen weggeführt.
+	rotated_box(root,Vector3(5.0,0.025,74.0),Vector3(10.4,0.205,-27.0),Color(0.115,0.12,0.13),-7.0)
+	rotated_box(root,Vector3(0.14,0.035,68.0),Vector3(8.0,0.235,-27.0),Color(0.94,0.94,0.91),-7.0)
+	rotated_box(root,Vector3(0.14,0.035,68.0),Vector3(12.8,0.235,-27.0),Color(0.94,0.94,0.91),-7.0)
+	station_box(root,Vector3(4.8,2.25,0.14),Vector3(10.2,4.1,8.0),Color(0.015,0.24,0.50))
+	station_box(root,Vector3(0.18,4.2,0.18),Vector3(12.0,2.1,8.0),Color(0.50,0.53,0.55))
+	var lab=Label3D.new()
+	lab.text=exit_name+"\n"+destination+"   ↗"
+	lab.font_size=28
+	lab.outline_size=5
+	lab.position=Vector3(10.2,4.1,7.88)
+	lab.rotation_degrees.y=180
+	root.add_child(lab)
+
+func create_rest_entry_190(z_pos:float,text_value:String):
+	var root=Node3D.new(); root.position=Vector3(0,0,z_pos); add_child(root)
+	station_box(root,Vector3(4.2,1.7,0.12),Vector3(10.2,3.5,0),Color(0.02,0.22,0.47))
+	station_box(root,Vector3(0.16,3.6,0.16),Vector3(11.7,1.8,0),Color(0.48,0.50,0.52))
+	var lab=Label3D.new(); lab.text=text_value; lab.font_size=24; lab.outline_size=4; lab.position=Vector3(10.2,3.5,-0.1); lab.rotation_degrees.y=180; root.add_child(lab)
+
+func create_emergency_marker_190(z_pos:float):
+	station_box(self,Vector3(0.10,0.85,0.10),Vector3(8.3,0.55,z_pos),Color(0.78,0.80,0.78))
+	station_box(self,Vector3(0.20,0.16,0.08),Vector3(8.3,0.92,z_pos),Color(0.12,0.18,0.24))
+
+func add_traffic_detail_190(parent:Node3D,traffic_type:int):
+	# Kleine universelle Details machen auch die älteren SUV/Van/Lkw-Modelle weniger blockig.
+	if traffic_type>=4:
+		station_box(parent,Vector3(0.46,0.11,0.035),Vector3(0,0.47,2.10),Color(0.88,0.88,0.82))
+		station_box(parent,Vector3(1.15,0.045,0.035),Vector3(0,0.75,2.12),Color(0.55,0.01,0.01))
+		for x in [-0.72,0.72]:
+			station_box(parent,Vector3(0.10,0.08,0.22),Vector3(x,1.10,-0.62),Color(0.025,0.03,0.035))
+	else:
+		# Nutzfahrzeuge: Stoßfänger und Kennzeichen am Heck.
+		station_box(parent,Vector3(1.8,0.10,0.08),Vector3(0,0.45,3.15),Color(0.05,0.055,0.06))
+		station_box(parent,Vector3(0.48,0.12,0.035),Vector3(0,0.62,3.21),Color(0.88,0.88,0.82))
