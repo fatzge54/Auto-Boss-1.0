@@ -134,7 +134,6 @@ func _ready():
 	randomize()
 	load_save()
 	create_environment()
-	upgrade_environment_210()
 	create_ground()
 	create_road()
 	create_scenery()
@@ -150,6 +149,7 @@ func _ready():
 	create_world_revolution_180()
 	create_world_expansion_190()
 	create_highway_revolution_200()
+	create_graphics_upgrade_210()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -158,10 +158,6 @@ func _ready():
 	create_ui()
 	apply_empire_theme_140()
 	show_main_menu()
-
-
-func _process(delta):
-	update_visuals_210(delta)
 
 
 func _physics_process(delta):
@@ -1367,11 +1363,11 @@ func create_environment():
 
 
 func create_ground():
-	tbox_210(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),grass_material_210())
+	box(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),Color(0.18,0.62,0.20))
 
 
 func create_road():
-	tbox_210(Vector3(18,0.2,3000),Vector3(0,0,-1500),asphalt_material_210())
+	box(Vector3(18,0.2,3000),Vector3(0,0,-1500),Color(0.105,0.11,0.125))
 	box(Vector3(2.2,0.10,3000),Vector3(-10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 	box(Vector3(2.2,0.10,3000),Vector3(10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 
@@ -1892,7 +1888,7 @@ func rebuild_player():
 
 func create_vehicle_model(parent,color_value):
 	# 15.0: komplett neu gezeichnetes, niedrigeres Fahrzeug mit klarer Silhouette.
-	create_vehicle_model_210(parent,color_value)
+	create_vehicle_model_180(parent,color_value)
 	return
 
 func create_vehicle_model_legacy(parent,color_value):
@@ -2269,8 +2265,6 @@ func box(size_value,pos,color_value):
 func material(color_value):
 	var m=StandardMaterial3D.new()
 	m.albedo_color=color_value
-	m.roughness=0.78
-	m.metallic_specular=0.35
 	return m
 
 
@@ -2760,273 +2754,24 @@ func create_guardrail_post_200(x:float,z:float):
 	station_box(self,Vector3(0.30,0.10,0.16),Vector3(x,0.72,z),Color(0.88,0.90,0.91))
 
 
-# AUTO BOSS 21.0 – 3D VISUAL UPGRADE
-# Himmel, Nebel, Asphalt-/Gras-Texturen, Lack- und Glas-Materialien,
-# neues Fahrzeugmodell mit abgerundeten Flanken, Bremslicht, Nässe bei Regen.
-var sky_mat_210
-var road_mat_210
-var grass_mat_210
-var tail_mats_210=[]
-var wet_210=0.0
-var night_210=0.0
-var fov_210=68.0
-var tick_210=1.0
-var last_brake_210=false
+# AUTO BOSS 21.0 – GRAPHICS UPGRADE
+# Nur visuelle Ergänzungen: keine Änderungen an Karriere, Fahrzeugphysik oder Speicherdatei.
+func create_graphics_upgrade_210():
+	# Reflektoren am Fahrbahnrand und feine Asphaltfugen.
+	for z in range(-45,-2950,-48):
+		for x in [-8.05,8.05]:
+			station_box(self,Vector3(0.14,0.045,0.34),Vector3(x,0.265,float(z)),Color(0.98,0.81,0.32))
+	for z in range(-150,-2850,-250):
+		station_box(self,Vector3(14.3,0.009,0.045),Vector3(0,0.229,float(z)),Color(0.15,0.16,0.17))
 
+	# Drei Rastplatz-Zufahrten durch farblich erkennbare Vorbereiche hervorheben.
+	for service_z in [-520.0,-1120.0,-1720.0]:
+		station_box(self,Vector3(4.0,0.014,34.0),Vector3(11.7,0.23,service_z),Color(0.18,0.19,0.20))
+		for dz in [-12.0,0.0,12.0]:
+			station_box(self,Vector3(0.18,0.024,2.8),Vector3(9.55,0.255,service_z+dz),Color(0.94,0.94,0.87))
 
-func noise_tex_210(freq:float,seed_value:int,c1:Color,c2:Color):
-	var n=FastNoiseLite.new()
-	n.noise_type=FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	n.frequency=freq
-	n.seed=seed_value
-	var g=Gradient.new()
-	g.set_color(0,c1)
-	g.set_color(1,c2)
-	var t=NoiseTexture2D.new()
-	t.width=256
-	t.height=256
-	t.seamless=true
-	t.noise=n
-	t.color_ramp=g
-	return t
-
-
-func asphalt_material_210():
-	var m=StandardMaterial3D.new()
-	m.albedo_texture=noise_tex_210(0.10,7,Color(0.075,0.078,0.088),Color(0.17,0.175,0.19))
-	m.uv1_triplanar=true
-	m.uv1_scale=Vector3(0.30,0.30,0.30)
-	m.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	m.roughness=0.88
-	m.metallic_specular=0.35
-	road_mat_210=m
-	return m
-
-
-func grass_material_210():
-	var m=StandardMaterial3D.new()
-	m.albedo_texture=noise_tex_210(0.05,21,Color(0.10,0.42,0.12),Color(0.24,0.68,0.22))
-	m.uv1_triplanar=true
-	m.uv1_scale=Vector3(0.09,0.09,0.09)
-	m.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	m.roughness=1.0
-	m.metallic_specular=0.1
-	grass_mat_210=m
-	return m
-
-
-func paint_material_210(c:Color):
-	var m=StandardMaterial3D.new()
-	m.albedo_color=c
-	m.metallic=0.45
-	m.metallic_specular=0.6
-	m.roughness=0.30
-	m.clearcoat_enabled=true
-	m.clearcoat=0.8
-	m.clearcoat_roughness=0.08
-	return m
-
-
-func glass_material_210():
-	var m=StandardMaterial3D.new()
-	m.albedo_color=Color(0.03,0.06,0.09)
-	m.metallic=0.7
-	m.metallic_specular=0.9
-	m.roughness=0.06
-	return m
-
-
-func emissive_material_210(c:Color,energy:float):
-	var m=StandardMaterial3D.new()
-	m.albedo_color=c
-	m.emission_enabled=true
-	m.emission=c
-	m.emission_energy_multiplier=energy
-	return m
-
-
-func tbox_210(size_value,pos,mat):
-	var obj=MeshInstance3D.new()
-	var mesh=BoxMesh.new()
-	mesh.size=size_value
-	obj.mesh=mesh
-	obj.position=pos
-	obj.material_override=mat
-	add_child(obj)
-
-
-func part_210(parent,mesh,pos,mat,rot=Vector3.ZERO):
-	var o=MeshInstance3D.new()
-	o.mesh=mesh
-	o.position=pos
-	o.rotation_degrees=rot
-	o.material_override=mat
-	parent.add_child(o)
-	return o
-
-
-func bx_210(size_value:Vector3):
-	var m=BoxMesh.new()
-	m.size=size_value
-	return m
-
-
-func cap_210(radius:float,height:float):
-	var m=CapsuleMesh.new()
-	m.radius=radius
-	m.height=height
-	m.radial_segments=16
-	m.rings=6
-	return m
-
-
-func cyl_210(radius:float,height:float):
-	var m=CylinderMesh.new()
-	m.top_radius=radius
-	m.bottom_radius=radius
-	m.height=height
-	m.radial_segments=20
-	return m
-
-
-func upgrade_environment_210():
-	if world_env!=null:
-		var sky_m=ProceduralSkyMaterial.new()
-		sky_m.sky_top_color=Color(0.20,0.45,0.85)
-		sky_m.sky_horizon_color=Color(0.62,0.80,0.95)
-		sky_m.ground_horizon_color=Color(0.62,0.80,0.95)
-		sky_m.ground_bottom_color=Color(0.35,0.45,0.35)
-		sky_m.sky_curve=0.18
-		sky_m.sun_angle_max=30.0
-		sky_m.sun_curve=0.15
-		sky_mat_210=sky_m
-		var sky=Sky.new()
-		sky.sky_material=sky_m
-		sky.process_mode=Sky.PROCESS_MODE_QUICK
-		sky.radiance_size=Sky.RADIANCE_SIZE_64
-		world_env.sky=sky
-		world_env.background_mode=Environment.BG_SKY
-		world_env.reflected_light_source=Environment.REFLECTION_SOURCE_SKY
-		world_env.fog_enabled=true
-		world_env.fog_light_color=Color(0.62,0.80,0.95)
-		world_env.fog_density=0.0011
-		world_env.fog_sky_affect=0.25
-		world_env.adjustment_enabled=true
-		world_env.adjustment_contrast=1.06
-		world_env.adjustment_saturation=1.10
-	if sun_light!=null:
-		sun_light.directional_shadow_mode=DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-		sun_light.directional_shadow_max_distance=85.0
-		sun_light.shadow_blur=1.4
-
-
-func update_visuals_210(delta):
-	if world_env==null or sky_mat_210==null:
-		return
-	var is_night=day_clock>0.78 or day_clock<0.10
-	var raining=weather_state=="Regen"
-	wet_210=move_toward(wet_210,1.0 if raining else 0.0,delta*0.25)
-	night_210=move_toward(night_210,1.0 if is_night else 0.0,delta*0.35)
-
-	# Bremslicht leuchtet stärker beim Bremsen
-	if brake!=last_brake_210:
-		last_brake_210=brake
-		for m in tail_mats_210:
-			m.emission_energy_multiplier=5.5 if brake else 2.0
-
-	# Fahrtwind-Gefühl: Sichtfeld wächst mit der Geschwindigkeit
-	if cam!=null and game_state=="driving":
-		var mx=max(1.0,float(cars[selected_car]["max_speed"]))
-		var k=clamp(abs(speed)/mx,0.0,1.3)
-		fov_210=lerp(fov_210,66.0+18.0*k,clamp(delta*3.0,0.0,1.0))
-		cam.fov=fov_210
-
-	# Sky/Nebel/Nässe nur alle 0.35 s aktualisieren (spart Rechenleistung am Handy)
-	tick_210+=delta
-	if tick_210<0.35:
-		return
-	tick_210=0.0
-	var sun_h=sin(day_clock*PI)
-	var warm=clamp((0.45-sun_h)/0.35,0.0,1.0)*(1.0-night_210)
-	var top=Color(0.20,0.45,0.85).lerp(Color(0.01,0.02,0.06),night_210)
-	var hor=Color(0.62,0.80,0.95).lerp(Color(0.04,0.07,0.15),night_210)
-	hor=hor.lerp(Color(1.0,0.55,0.28),warm*0.7*(1.0-wet_210))
-	var cloud_t=Color(0.38,0.43,0.50).lerp(Color(0.02,0.03,0.07),night_210)
-	var cloud_h=Color(0.58,0.62,0.68).lerp(Color(0.05,0.07,0.12),night_210)
-	top=top.lerp(cloud_t,wet_210)
-	hor=hor.lerp(cloud_h,wet_210)
-	sky_mat_210.sky_top_color=top
-	sky_mat_210.sky_horizon_color=hor
-	sky_mat_210.ground_horizon_color=hor
-	sky_mat_210.ground_bottom_color=hor.darkened(0.35)
-	world_env.fog_light_color=hor
-	world_env.fog_density=lerp(0.0011,0.0032,wet_210)
-	if sun_light!=null:
-		sun_light.light_color=Color(1.0,0.94,0.84).lerp(Color(1.0,0.62,0.35),warm)
-	if road_mat_210!=null:
-		road_mat_210.roughness=lerp(0.88,0.30,wet_210)
-		road_mat_210.metallic_specular=lerp(0.35,0.80,wet_210)
-
-
-func create_vehicle_model_210(parent,color_value):
-	# 21.0: abgerundete Flanken, schräge Scheiben, Lack mit Klarlack, Glas, Bremslicht.
-	tail_mats_210.clear()
-	last_brake_210=false
-	var paint=paint_material_210(color_value)
-	var trim=material(Color(0.02,0.022,0.026))
-	var glass=glass_material_210()
-	var chrome=StandardMaterial3D.new()
-	chrome.albedo_color=Color(0.62,0.65,0.70)
-	chrome.metallic=0.9
-	chrome.roughness=0.25
-
-	# Unterboden und Schweller
-	part_210(parent,bx_210(Vector3(1.92,0.18,4.05)),Vector3(0,0.40,0),trim)
-	# Karosserie + abgerundete Flanken, Front und Heck
-	part_210(parent,bx_210(Vector3(1.62,0.50,4.15)),Vector3(0,0.70,0),paint)
-	for x in [-0.78,0.78]:
-		part_210(parent,cap_210(0.21,4.0),Vector3(x,0.70,0),paint,Vector3(90,0,0))
-	part_210(parent,cap_210(0.24,1.9),Vector3(0,0.68,-1.92),paint,Vector3(0,0,90))
-	part_210(parent,cap_210(0.24,1.9),Vector3(0,0.72,1.92),paint,Vector3(0,0,90))
-	# Motorhaube und Kofferraum leicht geneigt
-	part_210(parent,bx_210(Vector3(1.55,0.10,1.35)),Vector3(0,0.98,-1.30),paint,Vector3(-4,0,0))
-	part_210(parent,bx_210(Vector3(1.55,0.10,0.90)),Vector3(0,1.00,1.62),paint,Vector3(3,0,0))
-	# Kabine: Seitenglas, Dach, B-Säule, schräge Front- und Heckscheibe
-	part_210(parent,bx_210(Vector3(1.52,0.46,1.30)),Vector3(0,1.22,0.30),glass)
-	part_210(parent,bx_210(Vector3(1.46,0.07,1.30)),Vector3(0,1.46,0.30),paint)
-	part_210(parent,bx_210(Vector3(1.56,0.46,0.09)),Vector3(0,1.22,0.30),paint)
-	part_210(parent,bx_210(Vector3(1.50,0.04,0.81)),Vector3(0,1.22,-0.675),glass,Vector3(-36.5,0,0))
-	part_210(parent,bx_210(Vector3(1.50,0.04,0.72)),Vector3(0,1.23,1.225),glass,Vector3(40,0,0))
-
-	# Front: Grill, Kennzeichen, Scheinwerfer
-	part_210(parent,bx_210(Vector3(0.90,0.20,0.05)),Vector3(0,0.62,-2.25),trim)
-	part_210(parent,bx_210(Vector3(1.20,0.05,0.06)),Vector3(0,0.46,-2.22),chrome)
-	part_210(parent,bx_210(Vector3(0.46,0.14,0.03)),Vector3(0,0.50,-2.28),material(Color(0.90,0.90,0.84)))
-	var head_mat=emissive_material_210(Color(0.90,0.96,1.0),2.2)
-	for x in [-0.64,0.64]:
-		part_210(parent,bx_210(Vector3(0.40,0.13,0.10)),Vector3(x,0.84,-2.17),head_mat)
-	# Heck: LED-Band, Rückleuchten, Kennzeichen, Diffusor
-	var tail_mat=emissive_material_210(Color(1.0,0.03,0.02),2.0)
-	tail_mats_210.append(tail_mat)
-	part_210(parent,bx_210(Vector3(1.30,0.07,0.05)),Vector3(0,0.88,2.20),tail_mat)
-	for x in [-0.66,0.66]:
-		part_210(parent,bx_210(Vector3(0.36,0.14,0.06)),Vector3(x,0.84,2.17),tail_mat)
-	part_210(parent,bx_210(Vector3(0.46,0.14,0.03)),Vector3(0,0.52,2.27),material(Color(0.90,0.90,0.84)))
-	part_210(parent,bx_210(Vector3(1.40,0.12,0.08)),Vector3(0,0.44,2.20),trim)
-	# Spiegel und Türgriffe
-	for x in [-1.0,1.0]:
-		part_210(parent,bx_210(Vector3(0.20,0.10,0.28)),Vector3(x,1.18,-0.50),trim)
-	for x in [-0.99,0.99]:
-		part_210(parent,bx_210(Vector3(0.035,0.05,0.30)),Vector3(x,0.98,0.25),chrome)
-
-	# Räder: Reifen, Felgenring, dunkler Einsatz, Nabe
-	var tire_mat=material(Color(0.012,0.014,0.017))
-	tire_mat.roughness=0.95
-	var inner_mat=material(Color(0.05,0.055,0.06))
-	for wx in [-0.98,0.98]:
-		for wz in [-1.28,1.28]:
-			var wp=Vector3(wx,0.45,wz)
-			part_210(parent,cyl_210(0.40,0.31),wp,tire_mat,Vector3(0,0,90))
-			part_210(parent,cyl_210(0.26,0.325),wp,chrome,Vector3(0,0,90))
-			part_210(parent,cyl_210(0.17,0.33),wp,inner_mat,Vector3(0,0,90))
-			part_210(parent,cyl_210(0.07,0.335),wp,chrome,Vector3(0,0,90))
+	# Leitpfosten an beiden Seiten mit hellen Reflexflächen.
+	for z in range(-65,-2910,-120):
+		for x in [-10.1,10.1]:
+			station_box(self,Vector3(0.16,0.86,0.14),Vector3(x,0.45,float(z)),Color(0.86,0.87,0.84))
+			station_box(self,Vector3(0.18,0.16,0.03),Vector3(x,0.68,float(z)-0.09),Color(0.11,0.12,0.13))
