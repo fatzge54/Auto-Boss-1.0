@@ -150,6 +150,7 @@ func _ready():
 	create_world_expansion_190()
 	create_highway_revolution_200()
 	create_graphics_revolution_210()
+	create_realism_revolution_220()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -2809,5 +2810,61 @@ func create_roadside_billboard_210(pos:Vector3):
 	label.font_size=28
 	label.outline_size=5
 	label.position=Vector3(0,4.7,-0.13)
+	label.rotation_degrees.y=180
+	root.add_child(label)
+
+
+# AUTO BOSS 22.0 – REALISM REVOLUTION
+# Dekorative Geometrie außerhalb der Fahrspuren; kein Einfluss auf Spielstände.
+func create_realism_revolution_220():
+	# Geriffelte Standstreifen und sanfte Asphalt-Farbwechsel.
+	for z in range(-35,-2940,-48):
+		for side in [-1.0,1.0]:
+			var x=side*7.72
+			station_box(self,Vector3(0.12,0.012,1.8),Vector3(x,0.235,float(z)),Color(0.73,0.74,0.71))
+	for z in range(-110,-2850,-185):
+		station_box(self,Vector3(4.6,0.009,12.0),Vector3(0.0,0.227,float(z)),Color(0.115,0.119,0.125))
+	# Leitpfosten mit rot-weißen Reflektoren, in größerem Abstand für mobile Performance.
+	for z in range(-60,-2910,-110):
+		for side in [-1.0,1.0]:
+			var x=side*10.85
+			station_box(self,Vector3(0.17,0.95,0.18),Vector3(x,0.49,float(z)),Color(0.91,0.92,0.88))
+			station_box(self,Vector3(0.19,0.18,0.20),Vector3(x,0.78,float(z)),Color(0.82,0.13,0.09))
+	# Baumgruppen mit zwei unterschiedlichen Silhouetten.
+	for z in range(-125,-2880,-175):
+		for side in [-1.0,1.0]:
+			var x=side*(27.0+float((abs(z)/175)%3)*3.0)
+			create_fir_220(Vector3(x,0.0,float(z)))
+			create_fir_220(Vector3(x+side*3.5,0.0,float(z)-7.0))
+	# Zusätzliche Autobahnmarkierungen, nicht in Tankstellenzufahrten.
+	for z in [-420.0,-980.0,-1570.0,-2250.0]:
+		create_kilometer_marker_220(z)
+
+func create_fir_220(pos:Vector3):
+	var root=Node3D.new()
+	root.position=pos
+	add_child(root)
+	station_box(root,Vector3(0.42,3.2,0.42),Vector3(0,1.6,0),Color(0.30,0.22,0.15))
+	var mesh=MeshInstance3D.new()
+	var cone=CylinderMesh.new()
+	cone.top_radius=0.12
+	cone.bottom_radius=2.2
+	cone.height=6.5
+	mesh.mesh=cone
+	mesh.position=Vector3(0,5.2,0)
+	mesh.material_override=material(Color(0.075,0.29,0.15))
+	root.add_child(mesh)
+
+func create_kilometer_marker_220(z_pos:float):
+	var root=Node3D.new()
+	root.position=Vector3(-11.4,0,z_pos)
+	add_child(root)
+	station_box(root,Vector3(0.16,1.9,0.16),Vector3(0,0.95,0),Color(0.61,0.65,0.66))
+	station_box(root,Vector3(1.25,0.70,0.12),Vector3(0,1.95,0),Color(0.11,0.35,0.19))
+	var label=Label3D.new()
+	label.text="A8  •  " + str(int(abs(z_pos)/10.0))
+	label.font_size=32
+	label.outline_size=6
+	label.position=Vector3(0,1.95,-0.10)
 	label.rotation_degrees.y=180
 	root.add_child(label)
