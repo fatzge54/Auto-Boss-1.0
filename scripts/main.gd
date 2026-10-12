@@ -149,6 +149,7 @@ func _ready():
 	create_world_revolution_180()
 	create_world_expansion_190()
 	create_highway_revolution_200()
+	create_graphics_revolution_210()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -2751,3 +2752,62 @@ func create_service_approach_200(z_pos:float,text_value:String):
 func create_guardrail_post_200(x:float,z:float):
 	station_box(self,Vector3(0.12,0.72,0.12),Vector3(x,0.42,z),Color(0.68,0.71,0.74))
 	station_box(self,Vector3(0.30,0.10,0.16),Vector3(x,0.72,z),Color(0.88,0.90,0.91))
+
+
+# AUTO BOSS 21.0 – GRAPHICS REVOLUTION
+# Statische Detailgeometrie: keine Änderungen an Karriere, Missionen oder Savegame.
+func create_graphics_revolution_210():
+	# Fahrbahnbelag: dezente Flickstellen und dunkle Reifenspuren.
+	for z in range(-65,-2920,-105):
+		for x in [-6.15,-5.25,5.25,6.15]:
+			station_box(self,Vector3(0.085,0.006,23.0),Vector3(x,0.222,float(z)),Color(0.068,0.073,0.082))
+		station_box(self,Vector3(3.5,0.007,8.5),Vector3(-5.4,0.225,float(z)-36.0),Color(0.12,0.125,0.13))
+	# Zusätzliche Straßenrand-Reflektoren und Leitplankenhalter.
+	for z in range(-75,-2920,-80):
+		for side in [-1.0,1.0]:
+			var x=side*9.12
+			station_box(self,Vector3(0.17,0.73,0.16),Vector3(x,0.38,float(z)),Color(0.43,0.46,0.49))
+			station_box(self,Vector3(0.24,0.09,0.22),Vector3(x,0.81,float(z)),Color(0.86,0.88,0.89))
+	# Schilder und Lichtpunkte an Servicebereichen; Zufahrten bleiben frei.
+	for z in [-520.0,-1120.0,-1720.0]:
+		create_service_visuals_210(z)
+	# Landschaftliche Landmarken, außerhalb der befahrbaren Fläche.
+	for z in [-280.0,-740.0,-1320.0,-1990.0,-2640.0]:
+		create_roadside_billboard_210(Vector3(-23.0,0,z))
+
+func create_service_visuals_210(z_pos:float):
+	var root=Node3D.new()
+	root.position=Vector3(16.0,0,z_pos)
+	add_child(root)
+	# Markierungen auf dem Vorplatz, sichtbare Zufahrtszone bleibt offen.
+	for x in [-5.5,-1.8,1.8,5.5]:
+		station_box(root,Vector3(0.10,0.025,5.5),Vector3(x,0.28,-7.0),Color(0.95,0.90,0.70))
+	# Dachblende, Shop-Fenster und beleuchtete Preistafel.
+	station_box(root,Vector3(8.9,0.20,0.18),Vector3(0,4.63,-2.95),Color(0.96,0.96,0.95))
+	for x in [-2.6,0.0,2.6]:
+		station_box(root,Vector3(1.85,1.25,0.075),Vector3(x,1.82,4.19),Color(0.11,0.24,0.31))
+		station_box(root,Vector3(1.70,0.08,0.09),Vector3(x,2.49,4.13),Color(0.88,0.89,0.85))
+	station_box(root,Vector3(1.7,4.7,0.20),Vector3(-8.5,2.4,-9.0),Color(0.02,0.24,0.44))
+	var label=Label3D.new()
+	label.text="AUTO BOSS\n24H SERVICE"
+	label.font_size=25
+	label.outline_size=6
+	label.position=Vector3(-8.5,3.15,-9.15)
+	label.rotation_degrees.y=180
+	root.add_child(label)
+
+func create_roadside_billboard_210(pos:Vector3):
+	var root=Node3D.new()
+	root.position=pos
+	add_child(root)
+	for x in [-2.4,2.4]:
+		station_box(root,Vector3(0.20,4.2,0.20),Vector3(x,2.1,0),Color(0.49,0.53,0.56))
+	station_box(root,Vector3(6.4,2.2,0.16),Vector3(0,4.7,0),Color(0.035,0.19,0.35))
+	station_box(root,Vector3(6.0,0.13,0.19),Vector3(0,5.85,0),Color(0.92,0.77,0.23))
+	var label=Label3D.new()
+	label.text="AUTO BOSS\nHIGHWAY"
+	label.font_size=28
+	label.outline_size=5
+	label.position=Vector3(0,4.7,-0.13)
+	label.rotation_degrees.y=180
+	root.add_child(label)
