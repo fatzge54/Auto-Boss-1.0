@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 20.0 • HIGHWAY REVOLUTION"
+	title.text="AUTO BOSS 27.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 20.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 27.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -1669,6 +1669,12 @@ func create_motorway_sign(pos:Vector3,text_value:String):
 	label.position=Vector3(0,7.15,-0.20)
 	label.rotation_degrees.y=180
 	root.add_child(label)
+	var back_label=Label3D.new()
+	back_label.text=label.text
+	back_label.font_size=26
+	back_label.outline_size=5
+	back_label.position=Vector3(0,7.15,0.02)
+	root.add_child(back_label)
 
 
 func create_service_station_at(pos,station_name,fuel_price):
@@ -1836,28 +1842,43 @@ func repair_car():
 
 
 func tree(pos):
+	# 27.0: abwechslungsreiche Baumformen statt identischer Kugelkronen.
 	var root=Node3D.new()
 	root.position=pos
 	add_child(root)
-
+	var h=randf_range(3.7,5.4)
 	var trunk=MeshInstance3D.new()
 	var tm=CylinderMesh.new()
-	tm.top_radius=0.25
-	tm.bottom_radius=0.35
-	tm.height=2.5
+	tm.top_radius=0.16
+	tm.bottom_radius=0.32
+	tm.height=h*0.52
 	trunk.mesh=tm
-	trunk.position.y=1.25
-	trunk.material_override=material(Color(0.38,0.20,0.08))
+	trunk.position.y=tm.height*0.5
+	trunk.material_override=material(Color(0.28,0.18,0.105))
 	root.add_child(trunk)
-
-	var crown=MeshInstance3D.new()
-	var cm=SphereMesh.new()
-	cm.radius=1.25
-	cm.height=2.5
-	crown.mesh=cm
-	crown.position.y=3
-	crown.material_override=material(Color(0.08,0.60,0.12))
-	root.add_child(crown)
+	var pine=randf() < 0.55
+	if pine:
+		for i in range(3):
+			var foliage=MeshInstance3D.new()
+			var cone=CylinderMesh.new()
+			cone.top_radius=0.06
+			cone.bottom_radius=1.40-float(i)*0.26
+			cone.height=2.35
+			foliage.mesh=cone
+			foliage.position.y=h*0.48+float(i)*0.70
+			foliage.material_override=material(Color(0.065+float(i)*0.012,0.24+float(i)*0.025,0.105))
+			root.add_child(foliage)
+	else:
+		for i in range(3):
+			var foliage=MeshInstance3D.new()
+			var crown=SphereMesh.new()
+			crown.radius=1.0
+			crown.height=2.0
+			foliage.mesh=crown
+			foliage.scale=Vector3(1.12,0.80,1.05)
+			foliage.position=Vector3(float(i-1)*0.55,h*0.67+float(i%2)*0.45,0)
+			foliage.material_override=material(Color(0.08,0.28+float(i)*0.045,0.085))
+			root.add_child(foliage)
 
 
 func create_player():
@@ -2184,7 +2205,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 26.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 27.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2411,30 +2432,10 @@ func create_visual_revolution_160():
 		station_box(self,Vector3(13.8,0.012,18.0),Vector3(0,0.145,z),Color(0.105,0.11,0.12))
 
 func create_tree_cluster_150(pos:Vector3):
+	# Nutzt die abwechslungsreichen Baumformen der Version 27.0.
 	for i in range(5):
 		var p=pos+Vector3(randf_range(-5.0,5.0),0,randf_range(-9.0,9.0))
-		var root=Node3D.new()
-		root.position=p
-		add_child(root)
-		var trunk=MeshInstance3D.new()
-		var tm=CylinderMesh.new()
-		tm.top_radius=0.18
-		tm.bottom_radius=0.30
-		tm.height=2.8
-		trunk.mesh=tm
-		trunk.position.y=1.4
-		trunk.material_override=material(Color(0.25,0.13,0.055))
-		root.add_child(trunk)
-		for j in range(3):
-			var crown=MeshInstance3D.new()
-			var cm=SphereMesh.new()
-			cm.radius=1.0
-			cm.height=2.0
-			crown.mesh=cm
-			crown.scale=Vector3(1.15+0.18*j,0.82,1.05+0.12*j)
-			crown.position=Vector3(randf_range(-0.35,0.35),2.7+0.55*j,randf_range(-0.25,0.25))
-			crown.material_override=material(Color(0.045+0.018*j,0.30+randf_range(0.0,0.10),0.07))
-			root.add_child(crown)
+		tree(p)
 
 
 # AUTO BOSS 17.0 – GRAPHICS OVERHAUL
@@ -2580,6 +2581,7 @@ func create_sign_gantry_180(z_pos:float,left_text:String,right_text:String):
 	for data in [[-4.15,left_text],[4.15,right_text]]:
 		station_box(root,Vector3(7.5,1.75,0.16),Vector3(float(data[0]),5.0,-0.15),Color(0.015,0.22,0.48))
 		var lab=Label3D.new(); lab.text=str(data[1]); lab.font_size=28; lab.outline_size=5; lab.position=Vector3(float(data[0]),5.0,-0.27); lab.rotation_degrees.y=180; root.add_child(lab)
+		var reverse_lab=Label3D.new(); reverse_lab.text=str(data[1]); reverse_lab.font_size=28; reverse_lab.outline_size=5; reverse_lab.position=Vector3(float(data[0]),5.0,0.03); root.add_child(reverse_lab)
 
 func create_field_180(pos:Vector3,color_value:Color):
 	var root=Node3D.new(); root.position=pos; add_child(root)
