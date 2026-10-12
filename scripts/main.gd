@@ -148,6 +148,7 @@ func _ready():
 	create_graphics_overhaul_170()
 	create_world_revolution_180()
 	create_world_expansion_190()
+	create_highway_revolution_200()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -487,7 +488,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 19.0 • DEUTSCHLAND EMPIRE"
+	title.text="AUTO BOSS 20.0 • HIGHWAY REVOLUTION"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -532,7 +533,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 19.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 20.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -631,7 +632,7 @@ func show_main_menu():
 	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("19.0  •  AUTOBAHN EVOLUTION",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("20.0  •  HIGHWAY REVOLUTION",Vector2(50,94),16,Color(0.16,0.70,1.0))
 	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
@@ -719,7 +720,7 @@ func show_garage():
 	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 19.0 • PERFORMANCE STUDIO"
+	title.text="GARAGE 20.0 • PERFORMANCE STUDIO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -1663,7 +1664,7 @@ func create_motorway_sign(pos:Vector3,text_value:String):
 	label.font_size=26
 	label.outline_size=5
 	label.position=Vector3(0,7.15,-0.20)
-	label.rotation_degrees.y=0
+	label.rotation_degrees.y=180
 	root.add_child(label)
 
 
@@ -2180,7 +2181,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 19.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 20.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2289,6 +2290,9 @@ func create_noise_barrier_100(z_start:float, side:float):
 	add_child(root)
 	for i in range(7):
 		var z=-float(i)*14.0
+		var world_z=z_start+z
+		if is_service_clear_zone_200(world_z):
+			continue
 		station_box(root,Vector3(0.20,3.4,13.2),Vector3(side*11.0,1.7,z),Color(0.30,0.48,0.55))
 		station_box(root,Vector3(0.12,3.8,0.12),Vector3(side*10.9,1.9,z-6.5),Color(0.65,0.68,0.70))
 
@@ -2494,6 +2498,8 @@ func create_delineator_170(pos:Vector3,right_side:bool):
 	station_box(root,Vector3(0.07,0.09,0.19),Vector3(rx,0.81,-0.02),Color(0.96,0.96,0.90))
 
 func create_noise_barrier_170(pos:Vector3):
+	if is_service_clear_zone_200(pos.z):
+		return
 	var root=Node3D.new(); root.position=pos; add_child(root)
 	station_box(root,Vector3(0.14,3.0,39.0),Vector3(0,1.55,0),Color(0.30,0.49,0.56))
 	station_box(root,Vector3(0.17,0.10,39.2),Vector3(0,3.05,0),Color(0.68,0.73,0.75))
@@ -2689,3 +2695,59 @@ func add_traffic_detail_190(parent:Node3D,traffic_type:int):
 		# Nutzfahrzeuge: Stoßfänger und Kennzeichen am Heck.
 		station_box(parent,Vector3(1.8,0.10,0.08),Vector3(0,0.45,3.15),Color(0.05,0.055,0.06))
 		station_box(parent,Vector3(0.48,0.12,0.035),Vector3(0,0.62,3.21),Color(0.88,0.88,0.82))
+
+
+# AUTO BOSS 20.0 – HIGHWAY REVOLUTION
+# Repariert Service-Sichtachsen, beschriftet die bisher leeren Portale und
+# ergänzt einen optischen Detail-Layer ohne Karriere-/Savegame-Reset.
+func is_service_clear_zone_200(world_z:float)->bool:
+	for service_z in [-520.0,-1120.0,-1720.0]:
+		if abs(world_z-service_z) < 125.0:
+			return true
+	return false
+
+func create_highway_revolution_200():
+	# Beschriftung für die fünf 16.0-Portale, die bisher nur blaue Flächen waren.
+	var portal_data=[
+		[-360.0,"A8  Karlsruhe  92 km\nFrankfurt  184 km"],
+		[-860.0,"A81  Heilbronn  38 km\nWürzburg  142 km"],
+		[-1380.0,"A6  Mannheim  76 km\nFrankfurt  128 km"],
+		[-1900.0,"A5  Frankfurt  64 km\nKassel  258 km"],
+		[-2440.0,"A3  Frankfurt  31 km\nKöln  218 km"]
+	]
+	for data in portal_data:
+		create_portal_text_200(float(data[0]),str(data[1]))
+
+	# Servicebereiche bekommen eigene Vorankündigung und freie Sichtachsen.
+	create_service_approach_200(-430.0,"SERVICE SÜD  •  500 m")
+	create_service_approach_200(-1030.0,"SERVICE MITTE  •  500 m")
+	create_service_approach_200(-1630.0,"SERVICE NORD  •  500 m")
+
+	# Dezente Asphalt- und Randdetails für mehr Tiefenwirkung.
+	for z in range(-55,-2960,-115):
+		station_box(self,Vector3(2.15,0.008,18.0),Vector3(-5.2,0.212,z),Color(0.085,0.09,0.098))
+		station_box(self,Vector3(2.05,0.008,16.0),Vector3(5.1,0.212,z-48),Color(0.09,0.095,0.102))
+	for z in range(-90,-2940,-145):
+		create_guardrail_post_200(-9.15,float(z))
+		create_guardrail_post_200(9.15,float(z-72))
+
+func create_portal_text_200(z_pos:float,text_value:String):
+	var lab=Label3D.new()
+	lab.text=text_value+"\n↓                 ↓"
+	lab.font_size=22
+	lab.outline_size=5
+	lab.modulate=Color(0.97,0.98,1.0)
+	lab.position=Vector3(0,5.56,z_pos-0.14)
+	lab.rotation_degrees.y=180
+	add_child(lab)
+
+func create_service_approach_200(z_pos:float,text_value:String):
+	var root=Node3D.new(); root.position=Vector3(0,0,z_pos); add_child(root)
+	station_box(root,Vector3(4.9,1.65,0.12),Vector3(10.6,3.55,0),Color(0.015,0.24,0.52))
+	station_box(root,Vector3(0.16,3.7,0.16),Vector3(12.3,1.85,0),Color(0.52,0.55,0.58))
+	var lab=Label3D.new(); lab.text=text_value+"  ↗"; lab.font_size=22; lab.outline_size=4
+	lab.position=Vector3(10.6,3.55,-0.10); lab.rotation_degrees.y=180; root.add_child(lab)
+
+func create_guardrail_post_200(x:float,z:float):
+	station_box(self,Vector3(0.12,0.72,0.12),Vector3(x,0.42,z),Color(0.68,0.71,0.74))
+	station_box(self,Vector3(0.30,0.10,0.16),Vector3(x,0.72,z),Color(0.88,0.90,0.91))
