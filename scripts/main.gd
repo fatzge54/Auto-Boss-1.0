@@ -151,6 +151,7 @@ func _ready():
 	create_highway_revolution_200()
 	create_graphics_revolution_210()
 	create_realism_revolution_220()
+	create_next_gen_landscape_260()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -490,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 20.0 • HIGHWAY REVOLUTION"
+	title.text="AUTO BOSS 26.1 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -535,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 20.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 26.1 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -1364,7 +1365,7 @@ func create_environment():
 
 
 func create_ground():
-	box(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),Color(0.18,0.62,0.20))
+	box(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),Color(0.26,0.43,0.20))
 
 
 func create_road():
@@ -2183,7 +2184,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 20.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 26.1\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2868,3 +2869,30 @@ func create_kilometer_marker_220(z_pos:float):
 	label.position=Vector3(0,1.95,-0.10)
 	label.rotation_degrees.y=180
 	root.add_child(label)
+
+
+# AUTO BOSS 26.0 – NEXT GENERATION LANDSCAPE
+# Lightweight roadside color variation; no collision, mission, or save changes.
+func create_next_gen_landscape_260():
+	# Agricultural strips add depth without expensive textures or shaders.
+	var field_colors=[Color(0.34,0.43,0.19),Color(0.46,0.42,0.22),Color(0.22,0.39,0.21),Color(0.49,0.49,0.27)]
+	for i in range(14):
+		var z_pos=-120.0-float(i)*200.0
+		for side in [-1.0,1.0]:
+			var x_pos=side*43.0
+			station_box(self,Vector3(26.0,0.025,148.0),Vector3(x_pos,-0.025,z_pos),field_colors[(i+(0 if side<0 else 2))%field_colors.size()])
+			# Low hedge segments along the fields, away from the highway and service areas.
+			for k in range(3):
+				var hedge=MeshInstance3D.new()
+				var hedge_mesh=SphereMesh.new()
+				hedge_mesh.radius=1.0
+				hedge_mesh.height=2.0
+				hedge.mesh=hedge_mesh
+				hedge.scale=Vector3(3.2,0.8,1.5)
+				hedge.position=Vector3(side*29.0,0.8,z_pos-43.0+float(k)*30.0)
+				hedge.material_override=material(Color(0.12,0.31,0.13))
+				add_child(hedge)
+	# Subtle road repair strips break up the perfectly uniform asphalt.
+	for z in range(-90,-2900,-155):
+		for lane_x in [-5.0,1.0,5.0]:
+			station_box(self,Vector3(0.36,0.008,12.0),Vector3(lane_x,0.213,float(z)),Color(0.15,0.155,0.16))
