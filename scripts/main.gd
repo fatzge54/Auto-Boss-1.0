@@ -149,7 +149,6 @@ func _ready():
 	create_world_revolution_180()
 	create_world_expansion_190()
 	create_highway_revolution_200()
-	create_graphics_upgrade_210()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -2752,26 +2751,3 @@ func create_service_approach_200(z_pos:float,text_value:String):
 func create_guardrail_post_200(x:float,z:float):
 	station_box(self,Vector3(0.12,0.72,0.12),Vector3(x,0.42,z),Color(0.68,0.71,0.74))
 	station_box(self,Vector3(0.30,0.10,0.16),Vector3(x,0.72,z),Color(0.88,0.90,0.91))
-
-
-# AUTO BOSS 21.0 – GRAPHICS UPGRADE
-# Nur visuelle Ergänzungen: keine Änderungen an Karriere, Fahrzeugphysik oder Speicherdatei.
-func create_graphics_upgrade_210():
-	# Reflektoren am Fahrbahnrand und feine Asphaltfugen.
-	for z in range(-45,-2950,-48):
-		for x in [-8.05,8.05]:
-			station_box(self,Vector3(0.14,0.045,0.34),Vector3(x,0.265,float(z)),Color(0.98,0.81,0.32))
-	for z in range(-150,-2850,-250):
-		station_box(self,Vector3(14.3,0.009,0.045),Vector3(0,0.229,float(z)),Color(0.15,0.16,0.17))
-
-	# Drei Rastplatz-Zufahrten durch farblich erkennbare Vorbereiche hervorheben.
-	for service_z in [-520.0,-1120.0,-1720.0]:
-		station_box(self,Vector3(4.0,0.014,34.0),Vector3(11.7,0.23,service_z),Color(0.18,0.19,0.20))
-		for dz in [-12.0,0.0,12.0]:
-			station_box(self,Vector3(0.18,0.024,2.8),Vector3(9.55,0.255,service_z+dz),Color(0.94,0.94,0.87))
-
-	# Leitpfosten an beiden Seiten mit hellen Reflexflächen.
-	for z in range(-65,-2910,-120):
-		for x in [-10.1,10.1]:
-			station_box(self,Vector3(0.16,0.86,0.14),Vector3(x,0.45,float(z)),Color(0.86,0.87,0.84))
-			station_box(self,Vector3(0.18,0.16,0.03),Vector3(x,0.68,float(z)-0.09),Color(0.11,0.12,0.13))
