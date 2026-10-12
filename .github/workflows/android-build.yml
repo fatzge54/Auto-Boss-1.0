@@ -1,4 +1,4 @@
-9name: AUTO BOSS Android
+name: AUTO BOSS Android
 
 on:
   workflow_dispatch:
@@ -20,11 +20,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-- name: Android SDK installieren
-  uses: android-actions/setup-android@v3
-  with:
-    packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
+      - name: Android SDK installieren
+        uses: android-actions/setup-android@v3
 
       - name: Debug Keystore erstellen
         run: |
