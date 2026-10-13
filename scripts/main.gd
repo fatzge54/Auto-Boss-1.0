@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 29.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 30.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 29.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 30.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -2208,7 +2208,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 29.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 30.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2430,6 +2430,23 @@ func create_visual_revolution_160():
 		station_box(self,Vector3(0.16,6.2,0.16),Vector3(9.0,3.2,z),Color(0.36,0.39,0.43))
 		station_box(self,Vector3(18.1,0.16,0.16),Vector3(0,6.2,z),Color(0.42,0.45,0.49))
 		station_box(self,Vector3(5.2,1.05,0.18),Vector3(0,5.55,z-0.12),Color(0.02,0.23,0.52))
+		# 30.0: Die bisherigen blauen Portale hatten ueberhaupt keine Schrift.
+		var destination="A8  STUTTGART"
+		if z < -1250:
+			destination="A8  KARLSRUHE"
+		if z < -2100:
+			destination="A5  FRANKFURT"
+		for facing in [0.0,180.0]:
+			var label=Label3D.new()
+			label.text=destination
+			label.font_size=64
+			label.pixel_size=0.0045
+			label.outline_size=9
+			label.modulate=Color.WHITE
+			label.rotation_degrees.y=facing
+			label.position=Vector3(0,5.55,z-0.24 if facing == 180.0 else z-0.01)
+			label.no_depth_test=true
+			add_child(label)
 	# Dunklere Asphalt-Inlays erzeugen Geschwindigkeit und brechen die flache Fläche.
 	for z in range(-120,-2880,-260):
 		station_box(self,Vector3(13.8,0.012,18.0),Vector3(0,0.145,z),Color(0.105,0.11,0.12))
@@ -2654,7 +2671,7 @@ func create_vehicle_model_180(parent,color_value):
 
 
 
-# AUTO BOSS 29.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
+# AUTO BOSS 30.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
 # Die Form wird aus Querschnitten aufgebaut und ist bewusst leichtgewichtig fuer Android.
 func vehicle_shell_290(parent:Node3D, sections:Array, paint:Color)->void:
 	var mesh=ArrayMesh.new()
@@ -2737,8 +2754,21 @@ func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 	for x in [-0.72,0.72]:
 		light_box(parent,Vector3(x,0.84,-2.10),Color(0.83,0.93,1.0))
 		light_box(parent,Vector3(x,0.83,2.10),Color(0.97,0.045,0.03))
+	# 30.0: Glasseiten, dunkle Fensterrahmen und echte Seiten-Silhouette.
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.035,0.35,0.77),Vector3(side*0.79,1.41,-0.38),Color(0.035,0.105,0.16))
+		station_box(parent,Vector3(0.035,0.34,0.62),Vector3(side*0.79,1.41,0.43),Color(0.035,0.105,0.16))
+		station_box(parent,Vector3(0.06,0.42,0.055),Vector3(side*0.81,1.42,0.04),Color(0.025,0.03,0.04))
+		station_box(parent,Vector3(0.045,0.055,1.48),Vector3(side*0.81,1.64,0.04),paint.darkened(0.32))
+		station_box(parent,Vector3(0.16,0.12,0.26),Vector3(side*1.04,1.27,-0.67),paint.darkened(0.14))
+		station_box(parent,Vector3(0.045,0.055,0.23),Vector3(side*1.13,1.27,-0.67),Color(0.63,0.72,0.77))
+		station_box(parent,Vector3(0.05,0.04,0.30),Vector3(side*1.00,1.05,0.40),Color(0.62,0.65,0.68))
+	# Breiteres LED-Ruecklichtband und vordere Lufteinlaesse.
+	station_box(parent,Vector3(1.40,0.065,0.04),Vector3(0,0.90,2.135),Color(0.95,0.065,0.035))
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.34,0.14,0.05),Vector3(side*0.69,0.60,-2.15),Color(0.015,0.025,0.035))
 
-# AUTO BOSS 29.0 – VEHICLE REVOLUTION
+# AUTO BOSS 30.0 – VEHICLE REVOLUTION
 # Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
 func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
 	var glass=Color(0.065,0.14,0.20)
