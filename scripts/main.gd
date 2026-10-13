@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 32.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 33.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 32.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 33.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -1384,8 +1384,38 @@ func create_ground():
 
 
 
+# AUTO BOSS 33.0: asphalt grain generated on the GPU, without texture downloads.
+# Shader stays on one road mesh instead of thousands of individual road objects.
+func create_asphalt_330()->void:
+	var road=MeshInstance3D.new()
+	var shape=BoxMesh.new()
+	shape.size=Vector3(18.0,0.2,3000.0)
+	road.mesh=shape
+	road.position=Vector3(0,0,-1500)
+	var shader=Shader.new()
+	shader.code="""shader_type spatial;
+render_mode diffuse_burley, specular_schlick_ggx;
+varying vec3 world_pos_330;
+void vertex() { world_pos_330 = (MODEL_MATRIX * vec4(VERTEX,1.0)).xyz; }
+float hash21(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+void fragment() {
+    vec2 p = world_pos_330.xz;
+    float fine = hash21(floor(p*15.0));
+    float coarse = hash21(floor(p*1.8));
+    float tracks = exp(-pow(abs(fract((p.x+9.0)/3.0)-0.32)*11.0,2.0))*0.045;
+    float grain = (fine-0.5)*0.045 + (coarse-0.5)*0.035 - tracks;
+    ALBEDO = vec3(0.125,0.132,0.143) + vec3(grain);
+    ROUGHNESS = 0.89;
+    METALLIC = 0.0;
+}
+"""
+	var mat=ShaderMaterial.new()
+	mat.shader=shader
+	road.material_override=mat
+	add_child(road)
+
 func create_road():
-	box(Vector3(18,0.2,3000),Vector3(0,0,-1500),Color(0.105,0.11,0.125))
+	create_asphalt_330()
 	box(Vector3(2.2,0.10,3000),Vector3(-10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 	box(Vector3(2.2,0.10,3000),Vector3(10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 
@@ -2224,7 +2254,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 32.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 33.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2616,8 +2646,8 @@ func create_sign_gantry_180(z_pos:float,left_text:String,right_text:String):
 	station_box(root,Vector3(17.6,0.22,0.22),Vector3(0,5.95,0),Color(0.52,0.55,0.57))
 	for data in [[-4.15,left_text],[4.15,right_text]]:
 		station_box(root,Vector3(7.5,1.75,0.16),Vector3(float(data[0]),5.0,-0.15),Color(0.015,0.22,0.48))
-		var lab=Label3D.new(); lab.text=str(data[1]); lab.font_size=28; lab.outline_size=5; lab.position=Vector3(float(data[0]),5.0,-0.27); lab.rotation_degrees.y=180; root.add_child(lab)
-		var reverse_lab=Label3D.new(); reverse_lab.text=str(data[1]); reverse_lab.font_size=28; reverse_lab.outline_size=5; reverse_lab.position=Vector3(float(data[0]),5.0,0.03); root.add_child(reverse_lab)
+		var lab=Label3D.new(); lab.text=str(data[1]); lab.font_size=42; lab.pixel_size=0.006; lab.outline_size=9; lab.position=Vector3(float(data[0]),5.0,-0.27); lab.rotation_degrees.y=180; root.add_child(lab)
+		var reverse_lab=Label3D.new(); reverse_lab.text=str(data[1]); reverse_lab.font_size=42; reverse_lab.pixel_size=0.006; reverse_lab.outline_size=9; reverse_lab.position=Vector3(float(data[0]),5.0,0.03); root.add_child(reverse_lab)
 
 func create_field_180(pos:Vector3,color_value:Color):
 	var root=Node3D.new(); root.position=pos; add_child(root)
@@ -2687,7 +2717,7 @@ func create_vehicle_model_180(parent,color_value):
 
 
 
-# AUTO BOSS 32.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
+# AUTO BOSS 33.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
 # Die Form wird aus Querschnitten aufgebaut und ist bewusst leichtgewichtig fuer Android.
 # 31.0: Rundere, leichtgewichtige Karosserie mit berechneten Flaechennormalen.
 func vehicle_shell_290(parent:Node3D, sections:Array, paint:Color)->void:
@@ -2800,6 +2830,19 @@ func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 				wheel.rotation_degrees.z=90.0
 				wheel.material_override=material(wheel_data[2])
 				parent.add_child(wheel)
+	# 33.0: wheel spokes visible on both outside faces, with compact meshes.
+	for side in [-1.0,1.0]:
+		for axle_z in [-1.28,1.28]:
+			for spoke in range(5):
+				var angle=float(spoke)*TAU/5.0
+				var rim_bar=MeshInstance3D.new()
+				var rim_mesh=BoxMesh.new()
+				rim_mesh.size=Vector3(0.025,0.27,0.052)
+				rim_bar.mesh=rim_mesh
+				rim_bar.position=Vector3(side*1.177,0.45,axle_z)
+				rim_bar.rotation_degrees.x=rad_to_deg(angle)
+				rim_bar.material_override=material(Color(0.68,0.71,0.75))
+				parent.add_child(rim_bar)
 	# Stossfaenger, Kennzeichen, Leuchten und Grill.
 	station_box(parent,Vector3(1.28,0.17,0.055),Vector3(0,0.65,-2.115),Color(0.028,0.035,0.044))
 	station_box(parent,Vector3(0.47,0.13,0.04),Vector3(0,0.52,-2.15),Color(0.86,0.88,0.86))
@@ -2825,7 +2868,7 @@ func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 	for side in [-1.0,1.0]:
 		station_box(parent,Vector3(0.34,0.14,0.05),Vector3(side*0.69,0.60,-2.15),Color(0.015,0.025,0.035))
 
-# AUTO BOSS 32.0 – VEHICLE REVOLUTION
+# AUTO BOSS 33.0 – VEHICLE REVOLUTION
 # Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
 func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
 	var glass=Color(0.065,0.14,0.20)
@@ -2955,8 +2998,9 @@ func create_highway_revolution_200():
 func create_portal_text_200(z_pos:float,text_value:String):
 	var lab=Label3D.new()
 	lab.text=text_value+"\n↓                 ↓"
-	lab.font_size=22
-	lab.outline_size=5
+	lab.font_size=48
+	lab.pixel_size=0.007
+	lab.outline_size=10
 	lab.modulate=Color(0.97,0.98,1.0)
 	lab.position=Vector3(0,5.56,z_pos-0.14)
 	lab.rotation_degrees.y=180
