@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 31.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 32.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 31.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 32.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -1367,7 +1367,21 @@ func create_environment():
 
 
 func create_ground():
-	box(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),Color(0.26,0.43,0.20))
+	# 32.0: layered terrain colors and agricultural fields; no texture downloads.
+	box(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),Color(0.22,0.35,0.17))
+	var field_colors=[Color(0.28,0.39,0.19),Color(0.36,0.39,0.20),Color(0.23,0.32,0.17),Color(0.38,0.34,0.17)]
+	for i in range(22):
+		var z=-95.0-float(i)*132.0
+		for side in [-1.0,1.0]:
+			var width=randf_range(12.0,22.0)
+			var field=MeshInstance3D.new()
+			var mesh=PlaneMesh.new()
+			mesh.size=Vector2(width,randf_range(76.0,119.0))
+			field.mesh=mesh
+			field.position=Vector3(side*(27.0+width*0.45),0.008,z)
+			field.material_override=material(field_colors[(i+(1 if side>0 else 0))%field_colors.size()])
+			add_child(field)
+
 
 
 func create_road():
@@ -1427,10 +1441,12 @@ func create_hill(pos:Vector3, scale_value:float):
 	mesh.radius=1.0
 	mesh.height=2.0
 	hill.mesh=mesh
-	hill.position=pos+Vector3(0,-2.0,0)
-	hill.scale=Vector3(scale_value,scale_value*0.42,scale_value*1.25)
-	hill.material_override=material(Color(0.12,0.42+randf_range(0,0.08),0.16))
+	hill.position=pos+Vector3(0,-2.7,0)
+	hill.scale=Vector3(scale_value,scale_value*0.33,scale_value*1.55)
+	hill.material_override=material(Color(randf_range(0.18,0.25),randf_range(0.30,0.39),randf_range(0.13,0.19)))
 	add_child(hill)
+
+
 
 func create_lamp(pos:Vector3):
 	var root=Node3D.new()
@@ -1659,24 +1675,22 @@ func create_motorway_sign(pos:Vector3,text_value:String):
 	var root=Node3D.new()
 	root.position=pos
 	add_child(root)
-	# Portal bleibt über der Fahrbahn, Schild selbst ist deutlich kleiner.
-	station_box(root,Vector3(0.16,7.6,0.16),Vector3(-7.4,3.8,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(0.16,7.6,0.16),Vector3(7.4,3.8,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(15.0,0.16,0.16),Vector3(0,7.55,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(8.2,1.25,0.12),Vector3(0,7.15,-0.12),Color(0.02,0.28,0.55))
-	var label=Label3D.new()
-	label.text=text_value+"\n↓          ↓"
-	label.font_size=26
-	label.outline_size=5
-	label.position=Vector3(0,7.15,-0.20)
-	label.rotation_degrees.y=180
-	root.add_child(label)
-	var back_label=Label3D.new()
-	back_label.text=label.text
-	back_label.font_size=26
-	back_label.outline_size=5
-	back_label.position=Vector3(0,7.15,0.02)
-	root.add_child(back_label)
+	station_box(root,Vector3(0.18,7.7,0.18),Vector3(-7.4,3.85,0),Color(0.64,0.69,0.72))
+	station_box(root,Vector3(0.18,7.7,0.18),Vector3(7.4,3.85,0),Color(0.64,0.69,0.72))
+	station_box(root,Vector3(15.0,0.18,0.18),Vector3(0,7.55,0),Color(0.64,0.69,0.72))
+	station_box(root,Vector3(9.4,1.8,0.18),Vector3(0,7.0,0),Color(0.025,0.19,0.48))
+	for side in [-1.0,1.0]:
+		var label=Label3D.new()
+		label.text=text_value+"\n↓        ↓"
+		label.font_size=64
+		label.pixel_size=0.004
+		label.outline_size=12
+		label.modulate=Color.WHITE
+		label.position=Vector3(0,7.0,side*0.115)
+		if side>0.0:
+			label.rotation_degrees.y=180.0
+		root.add_child(label)
+
 
 
 func create_service_station_at(pos,station_name,fuel_price):
@@ -1844,43 +1858,45 @@ func repair_car():
 
 
 func tree(pos):
-	# 27.0: abwechslungsreiche Baumformen statt identischer Kugelkronen.
+	# 32.0: asymmetrical low-poly canopies, mixed heights and forest shades.
 	var root=Node3D.new()
 	root.position=pos
+	root.rotation.y=randf_range(-PI,PI)
 	add_child(root)
-	var h=randf_range(3.7,5.4)
+	var h=randf_range(4.2,7.2)
 	var trunk=MeshInstance3D.new()
 	var tm=CylinderMesh.new()
-	tm.top_radius=0.16
-	tm.bottom_radius=0.32
-	tm.height=h*0.52
+	tm.top_radius=0.13
+	tm.bottom_radius=0.30
+	tm.height=h*0.62
 	trunk.mesh=tm
 	trunk.position.y=tm.height*0.5
-	trunk.material_override=material(Color(0.28,0.18,0.105))
+	trunk.material_override=material(Color(0.26,0.18,0.115))
 	root.add_child(trunk)
-	var pine=randf() < 0.55
-	if pine:
-		for i in range(3):
+	var base=Color(randf_range(0.07,0.13),randf_range(0.24,0.36),randf_range(0.075,0.14))
+	if randf()<0.48:
+		for i in range(4):
 			var foliage=MeshInstance3D.new()
 			var cone=CylinderMesh.new()
-			cone.top_radius=0.06
-			cone.bottom_radius=1.40-float(i)*0.26
-			cone.height=2.35
+			cone.top_radius=0.02
+			cone.bottom_radius=1.50-float(i)*0.24
+			cone.height=2.1
 			foliage.mesh=cone
-			foliage.position.y=h*0.48+float(i)*0.70
-			foliage.material_override=material(Color(0.065+float(i)*0.012,0.24+float(i)*0.025,0.105))
+			foliage.position.y=h*0.39+float(i)*0.64
+			foliage.material_override=material(base.lightened(float(i)*0.045))
 			root.add_child(foliage)
 	else:
-		for i in range(3):
+		for i in range(5):
 			var foliage=MeshInstance3D.new()
 			var crown=SphereMesh.new()
 			crown.radius=1.0
 			crown.height=2.0
 			foliage.mesh=crown
-			foliage.scale=Vector3(1.12,0.80,1.05)
-			foliage.position=Vector3(float(i-1)*0.55,h*0.67+float(i%2)*0.45,0)
-			foliage.material_override=material(Color(0.08,0.28+float(i)*0.045,0.085))
+			foliage.scale=Vector3(randf_range(0.78,1.15),randf_range(0.68,0.96),randf_range(0.78,1.15))
+			foliage.position=Vector3(randf_range(-0.75,0.75),h*0.69+randf_range(-0.25,0.65),randf_range(-0.65,0.65))
+			foliage.material_override=material(base.lightened(float(i)*0.025))
 			root.add_child(foliage)
+
 
 
 func create_player():
@@ -2208,7 +2224,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 31.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 32.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2671,7 +2687,7 @@ func create_vehicle_model_180(parent,color_value):
 
 
 
-# AUTO BOSS 31.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
+# AUTO BOSS 32.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
 # Die Form wird aus Querschnitten aufgebaut und ist bewusst leichtgewichtig fuer Android.
 # 31.0: Rundere, leichtgewichtige Karosserie mit berechneten Flaechennormalen.
 func vehicle_shell_290(parent:Node3D, sections:Array, paint:Color)->void:
@@ -2809,7 +2825,7 @@ func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 	for side in [-1.0,1.0]:
 		station_box(parent,Vector3(0.34,0.14,0.05),Vector3(side*0.69,0.60,-2.15),Color(0.015,0.025,0.035))
 
-# AUTO BOSS 31.0 – VEHICLE REVOLUTION
+# AUTO BOSS 32.0 – VEHICLE REVOLUTION
 # Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
 func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
 	var glass=Color(0.065,0.14,0.20)
