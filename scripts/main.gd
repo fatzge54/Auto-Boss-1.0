@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 27.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 28.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 27.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 28.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -859,9 +859,11 @@ func wrap_road():
 
 func update_camera():
 	if camera_mode==1:
-		# Cockpit/Driver view: tief und nah an der Windschutzscheibe.
-		cam.global_position=car.global_position+Vector3(0,1.58,-0.35)
-		cam.look_at(car.global_position+Vector3(0,1.30,-28),Vector3.UP)
+		# 27.1: Frontkamera knapp vor der Karosserie.
+		# Das verhindert, dass Dach/Windschutzscheibe die Sicht schwarz verdecken.
+		# Bewusst als freie Fahrerperspektive statt voll modelliertem Innenraum.
+		cam.global_position=car.global_position+Vector3(0,1.62,-2.42)
+		cam.look_at(car.global_position+Vector3(0,1.35,-30),Vector3.UP)
 	else:
 		cam.global_position=car.global_position+Vector3(0,3.9,7.8)
 		cam.look_at(car.global_position+Vector3(0,0.8,-12),Vector3.UP)
@@ -1912,6 +1914,7 @@ func rebuild_player():
 func create_vehicle_model(parent,color_value):
 	# 15.0: komplett neu gezeichnetes, niedrigeres Fahrzeug mit klarer Silhouette.
 	create_vehicle_model_180(parent,color_value)
+	add_vehicle_details_280(parent,color_value)
 	return
 
 func create_vehicle_model_legacy(parent,color_value):
@@ -2205,7 +2208,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 27.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 28.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2649,6 +2652,47 @@ func create_vehicle_model_180(parent,color_value):
 			var rim=MeshInstance3D.new(); var rm=CylinderMesh.new(); rm.top_radius=0.245; rm.bottom_radius=0.245; rm.height=0.325; rim.mesh=rm; rim.position=Vector3(wx,0.45,wz); rim.rotation_degrees=Vector3(0,0,90); rim.material_override=material(Color(0.48,0.51,0.55)); parent.add_child(rim)
 			var hub=MeshInstance3D.new(); var hm=CylinderMesh.new(); hm.top_radius=0.075; hm.bottom_radius=0.075; hm.height=0.335; hub.mesh=hm; hub.position=Vector3(wx,0.45,wz); hub.rotation_degrees=Vector3(0,0,90); hub.material_override=material(Color(0.10,0.11,0.12)); parent.add_child(hub)
 
+
+# AUTO BOSS 28.0 – VEHICLE REVOLUTION
+# Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
+func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
+	var glass=Color(0.065,0.14,0.20)
+	var chrome=Color(0.64,0.70,0.73)
+	var dark=Color(0.028,0.034,0.044)
+	# Seitenfenster mit sichtbarer B-Saeule und umlaufenden Fensterleisten.
+	for side in [-1.0,1.0]:
+		var x=side*0.857
+		station_box(parent,Vector3(0.045,0.39,0.67),Vector3(x,1.42,-0.33),glass)
+		station_box(parent,Vector3(0.045,0.37,0.61),Vector3(x,1.42,0.44),glass)
+		station_box(parent,Vector3(0.052,0.48,0.075),Vector3(x+side*0.016,1.42,0.08),dark)
+		station_box(parent,Vector3(0.06,0.045,1.52),Vector3(x+side*0.015,1.63,0.10),chrome)
+		station_box(parent,Vector3(0.07,0.055,2.25),Vector3(side*0.956,0.98,0.10),paint.darkened(0.26))
+		# Aussenspiegel, Spiegelglas und Blinker.
+		station_box(parent,Vector3(0.22,0.14,0.31),Vector3(side*1.10,1.31,-0.68),paint.darkened(0.12))
+		station_box(parent,Vector3(0.035,0.085,0.21),Vector3(side*1.22,1.31,-0.68),chrome)
+		station_box(parent,Vector3(0.12,0.028,0.24),Vector3(side*1.11,1.36,-0.68),Color(0.95,0.70,0.28))
+		# Felgen mit acht sichtbaren Speichen auf beiden Radseiten.
+		for z in [-1.28,1.28]:
+			for spoke in range(8):
+				var angle=float(spoke)*PI/4.0
+				var rim_piece=MeshInstance3D.new()
+				var piece_mesh=BoxMesh.new()
+				piece_mesh.size=Vector3(0.022,0.035,0.19)
+				rim_piece.mesh=piece_mesh
+				rim_piece.position=Vector3(side*1.175,0.45+sin(angle)*0.13,z+cos(angle)*0.13)
+				rim_piece.rotation.x=-angle
+				rim_piece.material_override=material(chrome)
+				parent.add_child(rim_piece)
+	# LED-Tagfahrlicht und Lichtsignatur, sichtbare Kennzeichenhalter.
+	for x in [-0.73,0.73]:
+		station_box(parent,Vector3(0.42,0.055,0.048),Vector3(x,0.91,-2.15),Color(0.79,0.91,1.0))
+		station_box(parent,Vector3(0.39,0.075,0.05),Vector3(x,0.86,2.15),Color(0.95,0.055,0.025))
+	station_box(parent,Vector3(0.72,0.028,0.045),Vector3(0,0.58,-2.16),chrome)
+	station_box(parent,Vector3(0.72,0.028,0.045),Vector3(0,0.59,2.16),chrome)
+	# Dezente Sicken auf Motorhaube und Heck.
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.025,0.018,0.97),Vector3(side*0.62,1.21,-1.47),paint.lightened(0.13))
+		station_box(parent,Vector3(0.025,0.018,0.60),Vector3(side*0.68,1.15,1.55),paint.darkened(0.18))
 
 # AUTO BOSS 19.0 – AUTOBAHN EVOLUTION
 # Erweiterung auf Basis von 18.0: echte Ausfahrt-Silhouetten, Rastplatz-Zufahrten,
