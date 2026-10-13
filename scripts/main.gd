@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 33.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 34.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 33.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 34.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -1384,7 +1384,7 @@ func create_ground():
 
 
 
-# AUTO BOSS 33.0: asphalt grain generated on the GPU, without texture downloads.
+# AUTO BOSS 34.0: asphalt grain generated on the GPU, without texture downloads.
 # Shader stays on one road mesh instead of thousands of individual road objects.
 func create_asphalt_330()->void:
 	var road=MeshInstance3D.new()
@@ -1961,7 +1961,33 @@ func create_vehicle_model(parent,color_value):
 	# 15.0: komplett neu gezeichnetes, niedrigeres Fahrzeug mit klarer Silhouette.
 	create_vehicle_model_290(parent,color_value)
 	add_vehicle_details_280(parent,color_value)
+	add_vehicle_styling_340(parent,color_value)
 	return
+
+
+# 34.0: Distinctive lightweight exterior details, shared by player and traffic.
+# Kept separate from driving physics and collision shapes.
+func add_vehicle_styling_340(parent:Node3D, paint:Color)->void:
+	var dark=Color(0.025,0.031,0.039)
+	var chrome=Color(0.50,0.57,0.62)
+	# Full-width rear LED strip and sculpted trunk lip.
+	station_box(parent,Vector3(1.45,0.045,0.035),Vector3(0,0.91,2.145),Color(0.84,0.025,0.018))
+	station_box(parent,Vector3(1.40,0.045,0.11),Vector3(0,1.075,2.045),paint.darkened(0.15))
+	# A proper front grille with separated dark intakes and thin chrome accents.
+	station_box(parent,Vector3(1.10,0.23,0.05),Vector3(0,0.71,-2.15),dark)
+	for stripe in range(3):
+		station_box(parent,Vector3(1.03,0.014,0.058),Vector3(0,0.63+stripe*0.07,-2.185),chrome.darkened(0.30))
+	# Long bonnet crease lines, sill trim and wheel arch hints.
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.022,0.018,0.79),Vector3(side*0.67,1.095,-1.43),paint.lightened(0.18))
+		station_box(parent,Vector3(0.035,0.052,2.28),Vector3(side*0.965,0.48,0),dark)
+		station_box(parent,Vector3(0.025,0.022,1.85),Vector3(side*0.89,1.16,0.09),chrome.darkened(0.28))
+		# LED daytime running light strip on each front corner.
+		station_box(parent,Vector3(0.37,0.045,0.05),Vector3(side*0.73,0.93,-2.11),Color(0.75,0.90,1.0))
+		# Door handle pairs with a dark recess below the metallic handle.
+		for door_z in [-0.53,0.70]:
+			station_box(parent,Vector3(0.026,0.055,0.25),Vector3(side*1.019,1.05,door_z),dark)
+			station_box(parent,Vector3(0.029,0.023,0.20),Vector3(side*1.038,1.073,door_z),chrome)
 
 func create_vehicle_model_legacy(parent,color_value):
 	var body=MeshInstance3D.new()
@@ -2254,7 +2280,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 33.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 34.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2717,7 +2743,7 @@ func create_vehicle_model_180(parent,color_value):
 
 
 
-# AUTO BOSS 33.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
+# AUTO BOSS 34.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
 # Die Form wird aus Querschnitten aufgebaut und ist bewusst leichtgewichtig fuer Android.
 # 31.0: Rundere, leichtgewichtige Karosserie mit berechneten Flaechennormalen.
 func vehicle_shell_290(parent:Node3D, sections:Array, paint:Color)->void:
@@ -2868,7 +2894,7 @@ func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 	for side in [-1.0,1.0]:
 		station_box(parent,Vector3(0.34,0.14,0.05),Vector3(side*0.69,0.60,-2.15),Color(0.015,0.025,0.035))
 
-# AUTO BOSS 33.0 – VEHICLE REVOLUTION
+# AUTO BOSS 34.0 – VEHICLE REVOLUTION
 # Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
 func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
 	var glass=Color(0.065,0.14,0.20)
