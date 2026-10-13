@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 28.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 29.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 28.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 29.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -1913,7 +1913,7 @@ func rebuild_player():
 
 func create_vehicle_model(parent,color_value):
 	# 15.0: komplett neu gezeichnetes, niedrigeres Fahrzeug mit klarer Silhouette.
-	create_vehicle_model_180(parent,color_value)
+	create_vehicle_model_290(parent,color_value)
 	add_vehicle_details_280(parent,color_value)
 	return
 
@@ -2208,7 +2208,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 28.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 29.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2653,7 +2653,92 @@ func create_vehicle_model_180(parent,color_value):
 			var hub=MeshInstance3D.new(); var hm=CylinderMesh.new(); hm.top_radius=0.075; hm.bottom_radius=0.075; hm.height=0.335; hub.mesh=hm; hub.position=Vector3(wx,0.45,wz); hub.rotation_degrees=Vector3(0,0,90); hub.material_override=material(Color(0.10,0.11,0.12)); parent.add_child(hub)
 
 
-# AUTO BOSS 28.0 – VEHICLE REVOLUTION
+
+# AUTO BOSS 29.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
+# Die Form wird aus Querschnitten aufgebaut und ist bewusst leichtgewichtig fuer Android.
+func vehicle_shell_290(parent:Node3D, sections:Array, paint:Color)->void:
+	var mesh=ArrayMesh.new()
+	var vertices=PackedVector3Array()
+	var indices=PackedInt32Array()
+	for section in sections:
+		var z=float(section[0])
+		var half_width=float(section[1])
+		var bottom=float(section[2])
+		var shoulder=float(section[3])
+		var top=float(section[4])
+		# Achteckiger Querschnitt mit abgeschraegten Karosseriekanten.
+		for point in [Vector2(-half_width*0.78,bottom),Vector2(half_width*0.78,bottom),Vector2(half_width,shoulder*0.84),Vector2(half_width*0.96,shoulder),Vector2(half_width*0.77,top),Vector2(-half_width*0.77,top),Vector2(-half_width*0.96,shoulder),Vector2(-half_width,shoulder*0.84)]:
+			vertices.append(Vector3(point.x,point.y,z))
+	for section_index in range(sections.size()-1):
+		for corner in range(8):
+			var a=section_index*8+corner
+			var b=section_index*8+(corner+1)%8
+			var c=(section_index+1)*8+corner
+			var d=(section_index+1)*8+(corner+1)%8
+			indices.append_array(PackedInt32Array([a,c,b,b,c,d]))
+	for corner in range(1,7):
+		indices.append_array(PackedInt32Array([0,corner+1,corner]))
+	var last=(sections.size()-1)*8
+	for corner in range(1,7):
+		indices.append_array(PackedInt32Array([last,last+corner,last+corner+1]))
+	var arrays=[]
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX]=vertices
+	arrays[Mesh.ARRAY_INDEX]=indices
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+	var instance=MeshInstance3D.new()
+	instance.mesh=mesh
+	var finish=StandardMaterial3D.new()
+	finish.albedo_color=paint
+	finish.metallic=0.22
+	finish.roughness=0.31
+	finish.cull_mode=BaseMaterial3D.CULL_DISABLED
+	instance.material_override=finish
+	parent.add_child(instance)
+
+func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
+	# Tief gezogene Front, breite Schultern und sanft verjuengtes Heck.
+	vehicle_shell_290(parent,[
+		[-2.10,0.76,0.47,0.67,0.73],
+		[-1.92,0.94,0.43,0.86,0.97],
+		[-1.16,1.00,0.41,1.00,1.15],
+		[0.80,1.01,0.41,1.03,1.13],
+		[1.68,0.97,0.43,0.97,1.06],
+		[2.10,0.80,0.47,0.72,0.78]
+	],paint)
+	# Die Dachkontur verengt sich nach oben, die Windschutzscheibe ist geneigt.
+	vehicle_shell_290(parent,[
+		[-0.97,0.80,1.08,1.12,1.16],
+		[-0.43,0.78,1.13,1.52,1.67],
+		[0.60,0.77,1.12,1.57,1.68],
+		[1.17,0.77,1.05,1.10,1.13]
+	],paint.darkened(0.09))
+	# Windschutzscheibe und Heckscheibe als geneigte Flaechen.
+	rotated_box(parent,Vector3(1.45,0.66,0.045),Vector3(0,1.39,-0.69),Color(0.055,0.12,0.18),-35.0)
+	rotated_box(parent,Vector3(1.42,0.53,0.045),Vector3(0,1.36,0.93),Color(0.05,0.10,0.15),33.0)
+	# Raeder, dunkle Reifen, Metallfelgen und Naben.
+	for x in [-1.0,1.0]:
+		for z in [-1.28,1.28]:
+			for wheel_data in [[0.40,0.31,Color(0.016,0.018,0.022)],[0.245,0.325,Color(0.49,0.53,0.57)],[0.075,0.34,Color(0.09,0.10,0.11)]]:
+				var wheel=MeshInstance3D.new()
+				var cylinder=CylinderMesh.new()
+				cylinder.top_radius=wheel_data[0]
+				cylinder.bottom_radius=wheel_data[0]
+				cylinder.height=wheel_data[1]
+				wheel.mesh=cylinder
+				wheel.position=Vector3(x,0.45,z)
+				wheel.rotation_degrees.z=90.0
+				wheel.material_override=material(wheel_data[2])
+				parent.add_child(wheel)
+	# Stossfaenger, Kennzeichen, Leuchten und Grill.
+	station_box(parent,Vector3(1.28,0.17,0.055),Vector3(0,0.65,-2.115),Color(0.028,0.035,0.044))
+	station_box(parent,Vector3(0.47,0.13,0.04),Vector3(0,0.52,-2.15),Color(0.86,0.88,0.86))
+	station_box(parent,Vector3(0.47,0.13,0.04),Vector3(0,0.52,2.15),Color(0.86,0.88,0.86))
+	for x in [-0.72,0.72]:
+		light_box(parent,Vector3(x,0.84,-2.10),Color(0.83,0.93,1.0))
+		light_box(parent,Vector3(x,0.83,2.10),Color(0.97,0.045,0.03))
+
+# AUTO BOSS 29.0 – VEHICLE REVOLUTION
 # Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
 func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
 	var glass=Color(0.065,0.14,0.20)
