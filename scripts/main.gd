@@ -491,7 +491,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 30.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 31.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +536,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 30.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 31.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -2208,7 +2208,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 30.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 31.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2671,47 +2671,84 @@ func create_vehicle_model_180(parent,color_value):
 
 
 
-# AUTO BOSS 30.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
+# AUTO BOSS 31.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
 # Die Form wird aus Querschnitten aufgebaut und ist bewusst leichtgewichtig fuer Android.
+# 31.0: Rundere, leichtgewichtige Karosserie mit berechneten Flaechennormalen.
 func vehicle_shell_290(parent:Node3D, sections:Array, paint:Color)->void:
-	var mesh=ArrayMesh.new()
 	var vertices=PackedVector3Array()
 	var indices=PackedInt32Array()
+	var ring_count=16
 	for section in sections:
 		var z=float(section[0])
 		var half_width=float(section[1])
 		var bottom=float(section[2])
 		var shoulder=float(section[3])
 		var top=float(section[4])
-		# Achteckiger Querschnitt mit abgeschraegten Karosseriekanten.
-		for point in [Vector2(-half_width*0.78,bottom),Vector2(half_width*0.78,bottom),Vector2(half_width,shoulder*0.84),Vector2(half_width*0.96,shoulder),Vector2(half_width*0.77,top),Vector2(-half_width*0.77,top),Vector2(-half_width*0.96,shoulder),Vector2(-half_width,shoulder*0.84)]:
-			vertices.append(Vector3(point.x,point.y,z))
+		# 16 Eckpunkte ergeben weichere Kotfluegel und gerundete Dachkanten.
+		var profile=[
+			Vector2(-0.73,bottom),Vector2(-0.90,bottom+0.025),
+			Vector2(-0.985,bottom+0.11),Vector2(-1.0,shoulder*0.88),
+			Vector2(-0.97,shoulder),Vector2(-0.90,shoulder+(top-shoulder)*0.45),
+			Vector2(-0.78,top-0.035),Vector2(-0.63,top),
+			Vector2(0.63,top),Vector2(0.78,top-0.035),
+			Vector2(0.90,shoulder+(top-shoulder)*0.45),Vector2(0.97,shoulder),
+			Vector2(1.0,shoulder*0.88),Vector2(0.985,bottom+0.11),
+			Vector2(0.90,bottom+0.025),Vector2(0.73,bottom)]
+		for point in profile:
+			vertices.append(Vector3(point.x*half_width,point.y,z))
 	for section_index in range(sections.size()-1):
-		for corner in range(8):
-			var a=section_index*8+corner
-			var b=section_index*8+(corner+1)%8
-			var c=(section_index+1)*8+corner
-			var d=(section_index+1)*8+(corner+1)%8
+		for corner in range(ring_count):
+			var a=section_index*ring_count+corner
+			var b=section_index*ring_count+(corner+1)%ring_count
+			var c=(section_index+1)*ring_count+corner
+			var d=(section_index+1)*ring_count+(corner+1)%ring_count
 			indices.append_array(PackedInt32Array([a,c,b,b,c,d]))
-	for corner in range(1,7):
+	for corner in range(1,ring_count-1):
 		indices.append_array(PackedInt32Array([0,corner+1,corner]))
-	var last=(sections.size()-1)*8
-	for corner in range(1,7):
+	var last=(sections.size()-1)*ring_count
+	for corner in range(1,ring_count-1):
 		indices.append_array(PackedInt32Array([last,last+corner,last+corner+1]))
-	var arrays=[]
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX]=vertices
-	arrays[Mesh.ARRAY_INDEX]=indices
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+	var surface=SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for index in indices:
+		surface.add_vertex(vertices[index])
+	surface.generate_normals()
+	var mesh=surface.commit()
 	var instance=MeshInstance3D.new()
 	instance.mesh=mesh
 	var finish=StandardMaterial3D.new()
 	finish.albedo_color=paint
-	finish.metallic=0.22
-	finish.roughness=0.31
+	finish.metallic=0.36
+	finish.roughness=0.24
 	finish.cull_mode=BaseMaterial3D.CULL_DISABLED
 	instance.material_override=finish
 	parent.add_child(instance)
+
+# Leichtgewichtige, schraeg geschnittene Seitenscheiben (ohne externe Assets).
+func vehicle_side_glass_310(parent:Node3D, side:float, z_front:float, z_back:float, y_bottom:float, y_top:float, top_inset:float)->void:
+	var x=side*0.805
+	var glass_mesh=ArrayMesh.new()
+	var verts=PackedVector3Array([
+		Vector3(x,y_bottom,z_front),
+		Vector3(x,y_bottom,z_back),
+		Vector3(x-side*top_inset,y_top,z_back-0.13),
+		Vector3(x-side*top_inset,y_top,z_front+0.18)
+	])
+	var idx=PackedInt32Array([0,1,2,0,2,3])
+	var arrays=[]
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX]=verts
+	arrays[Mesh.ARRAY_INDEX]=idx
+	glass_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+	var glass=MeshInstance3D.new()
+	glass.mesh=glass_mesh
+	var mat=StandardMaterial3D.new()
+	mat.albedo_color=Color(0.035,0.095,0.145)
+	mat.metallic=0.26
+	mat.roughness=0.15
+	mat.cull_mode=BaseMaterial3D.CULL_DISABLED
+	glass.material_override=mat
+	parent.add_child(glass)
 
 func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 	# Tief gezogene Front, breite Schultern und sanft verjuengtes Heck.
@@ -2754,6 +2791,10 @@ func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 	for x in [-0.72,0.72]:
 		light_box(parent,Vector3(x,0.84,-2.10),Color(0.83,0.93,1.0))
 		light_box(parent,Vector3(x,0.83,2.10),Color(0.97,0.045,0.03))
+	# 31.0: Zusaetzliche geneigte Glasflaechen fuer klarere Fenster-Silhouette.
+	for side in [-1.0,1.0]:
+		vehicle_side_glass_310(parent,side,-0.91,0.02,1.24,1.60,0.07)
+		vehicle_side_glass_310(parent,side,0.09,0.91,1.24,1.60,0.07)
 	# 30.0: Glasseiten, dunkle Fensterrahmen und echte Seiten-Silhouette.
 	for side in [-1.0,1.0]:
 		station_box(parent,Vector3(0.035,0.35,0.77),Vector3(side*0.79,1.41,-0.38),Color(0.035,0.105,0.16))
@@ -2768,7 +2809,7 @@ func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
 	for side in [-1.0,1.0]:
 		station_box(parent,Vector3(0.34,0.14,0.05),Vector3(side*0.69,0.60,-2.15),Color(0.015,0.025,0.035))
 
-# AUTO BOSS 30.0 – VEHICLE REVOLUTION
+# AUTO BOSS 31.0 – VEHICLE REVOLUTION
 # Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
 func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
 	var glass=Color(0.065,0.14,0.20)
