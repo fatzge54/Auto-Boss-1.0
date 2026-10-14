@@ -27,6 +27,10 @@ var traffic_scan_due_390=false
 # 40.0: Static roadside boxes are merged by material and 240 m world chunk.
 var batched_box_count_400=0
 var batched_draw_groups_400=0
+# 41.0: One GPU rain batch instead of 42 standalone mesh nodes.
+var rain_multimesh_410:MultiMesh
+var rain_drops_410:Array[Vector3]=[]
+var service_accumulator_410=0.0
 # 36.0: Batched vegetation (shared geometry/materials instead of hundreds of nodes).
 var forest_batches_360={}
 var forest_counts_360={}
@@ -193,7 +197,11 @@ func _physics_process(delta):
 	if rain_root!=null and rain_root.visible:
 		rain_root.global_position=car.global_position+Vector3(0,7,-8)
 	update_traffic(delta)
-	update_service()
+	# Services only need 5 checks per second; avoid per-frame arrays/UI work.
+	service_accumulator_410+=delta
+	if service_accumulator_410>=0.20:
+		update_service()
+		service_accumulator_410=0.0
 	update_mission(delta)
 	hud_accumulator_390+=delta
 	if hud_accumulator_390>=0.20:
@@ -840,6 +848,8 @@ func start_mission():
 	for i in range(10):
 		spawn_traffic(-60.0-float(i)*50.0)
 
+	service_accumulator_410=0.0
+	update_service()
 	update_hud()
 
 
@@ -1095,25 +1105,69 @@ func spawn_traffic(z_pos):
 		Color(0.45,0.12,0.55), Color(0.72,0.72,0.68)
 	]
 	var traffic_type=randi()%14
+	var traffic_color=colors[randi()%colors.size()]
 	if traffic_type<2:
-		create_truck_model(t)
 		t.set_meta("traffic_speed",randf_range(14.0,22.0))
 	elif traffic_type<4:
-		create_van_model_53(t,colors[randi()%colors.size()])
 		t.set_meta("traffic_speed",randf_range(18.0,28.0))
-	elif traffic_type<7:
-		create_suv_model_53(t,colors[randi()%colors.size()])
-	elif traffic_type==7:
-		create_sport_model_100(t,colors[randi()%colors.size()])
-	else:
-		create_vehicle_model(t,colors[randi()%colors.size()])
-	add_ai_lights_53(t)
-	add_traffic_detail_190(t,traffic_type)
+	# 41.0 LOD: distant cars are built with a small number of meshes.
+	# Full detail is built just once when an AI car is close enough to see it.
+	t.set_meta("traffic_type_410",traffic_type)
+	t.set_meta("traffic_color_410",traffic_color)
+	t.set_meta("full_detail_410",false)
+	create_traffic_lod_410(t,traffic_type,traffic_color)
 
 	traffic.append(t)
 	# A newly spawned traffic car must not interpolate from the origin.
 	t.reset_physics_interpolation()
 
+
+
+# 41.0: Simple silhouette for distant traffic, avoiding dozens of draw calls
+# and expensive wheel detail until a vehicle approaches the player.
+func create_traffic_lod_410(t:Node3D,traffic_type:int,paint:Color)->void:
+	var root=Node3D.new()
+	root.name="LowDetail41"
+	t.add_child(root)
+	var truck=traffic_type<2
+	var long_car=truck or traffic_type<4
+	var size_z=6.1 if truck else (4.6 if long_car else 4.1)
+	station_box(root,Vector3(2.02,0.62,size_z),Vector3(0,0.78,0.0),paint)
+	if truck:
+		station_box(root,Vector3(2.12,1.55,3.75),Vector3(0,1.61,1.02),Color(0.80,0.82,0.84))
+		station_box(root,Vector3(1.75,0.50,0.08),Vector3(0,1.40,-2.98),Color(0.05,0.11,0.16))
+	else:
+		station_box(root,Vector3(1.64,0.55,2.05),Vector3(0,1.37,0.10),paint.darkened(0.16))
+		station_box(root,Vector3(1.52,0.07,1.70),Vector3(0,1.65,0.10),Color(0.04,0.11,0.15))
+	# Keep recognisable wheels, front and back even at a distance.
+	for x in [-1.03,1.03]:
+		for z in [-size_z*0.32,size_z*0.32]:
+			station_box(root,Vector3(0.27,0.66,0.72),Vector3(x,0.46,z),Color(0.025,0.027,0.03))
+	station_box(root,Vector3(1.32,0.10,0.08),Vector3(0,0.85,size_z*0.5+0.03),Color(0.82,0.07,0.045))
+
+
+func upgrade_traffic_detail_410(t:Node3D)->void:
+	if bool(t.get_meta("full_detail_410",false)):
+		return
+	var simple=t.get_node_or_null("LowDetail41")
+	if simple!=null:
+		simple.visible=false
+		simple.queue_free()
+	var kind=int(t.get_meta("traffic_type_410",0))
+	var paint:Color=t.get_meta("traffic_color_410",Color(0.5,0.5,0.5))
+	if kind<2:
+		create_truck_model(t)
+	elif kind<4:
+		create_van_model_53(t,paint)
+	elif kind<7:
+		create_suv_model_53(t,paint)
+	elif kind==7:
+		create_sport_model_100(t,paint)
+	else:
+		create_vehicle_model(t,paint)
+	add_ai_lights_53(t)
+	add_traffic_detail_190(t,kind)
+	t.set_meta("full_detail_410",true)
 
 func update_traffic(delta):
 	traffic_timer+=delta
@@ -1130,6 +1184,8 @@ func update_traffic(delta):
 			spawn_traffic(car.position.z-randf_range(200.0,285.0))
 
 	var lanes=[-5.5,0.0,5.5]
+	# Avoid several heavy detail-model constructions in the same frame.
+	var upgraded_this_tick_410=false
 
 	for t in traffic.duplicate():
 		if not is_instance_valid(t):
@@ -1185,6 +1241,11 @@ func update_traffic(delta):
 			t.queue_free()
 			continue
 
+		# Only a nearby AI vehicle needs the expensive detailed mesh.
+		if not upgraded_this_tick_410 and not bool(t.get_meta("full_detail_410",false)):
+			if abs(t.position.z-car.position.z)<145.0:
+				upgrade_traffic_detail_410(t)
+				upgraded_this_tick_410=true
 		check_collision(t)
 
 
@@ -1283,22 +1344,32 @@ func update_world_30(delta):
 			if ai_lamp!=null:
 				ai_lamp.visible=is_night or weather_state=="Regen"
 
-	# 5.3: Straßenlaternen schalten sich nachts und bei Regen sichtbar ein.
+	# 41.0: Light only the part of the motorway close to the camera/car.
+	# Distant OmniLights would otherwise shade the GPU even while standing still.
+	var lamps_active=is_night or weather_state=="Regen"
+	var lamp_energy=1.45 if is_night else 0.55
 	for node in get_tree().get_nodes_in_group("road_lamps_53"):
 		if is_instance_valid(node):
-			node.light_energy=1.45 if is_night else (0.55 if weather_state=="Regen" else 0.0)
+			var nearby=node.global_position.distance_squared_to(car.global_position)<6400.0
+			var enabled=lamps_active and nearby
+			if node.visible!=enabled:
+				node.visible=enabled
+			if enabled and node.light_energy!=lamp_energy:
+				node.light_energy=lamp_energy
 
 	if rain_root!=null:
 		rain_root.visible=weather_state=="Regen"
 		rain_root.global_position=car.global_position+Vector3(0,7,-8)
 		if weather_state=="Regen":
-			for drop in rain_root.get_children():
-				drop.position.y-=18.0*delta
-				drop.position.z+=4.0*delta
-				if drop.position.y < -2.0:
-					drop.position.y=randf_range(4.0,10.0)
-					drop.position.x=randf_range(-12.0,12.0)
-					drop.position.z=randf_range(-15.0,8.0)
+			var rain_basis=Basis(Vector3.RIGHT,deg_to_rad(-12.0))
+			for i in range(rain_drops_410.size()):
+				var drop_pos=rain_drops_410[i]
+				drop_pos.y-=18.0*delta
+				drop_pos.z+=4.0*delta
+				if drop_pos.y < -2.0:
+					drop_pos=Vector3(randf_range(-12.0,12.0),randf_range(4.0,10.0),randf_range(-15.0,8.0))
+				rain_drops_410[i]=drop_pos
+				rain_multimesh_410.set_instance_transform(i,Transform3D(rain_basis,drop_pos))
 
 
 func update_road_events_40(delta):
@@ -1356,15 +1427,23 @@ func update_road_events_40(delta):
 func create_rain_system():
 	rain_root=Node3D.new()
 	add_child(rain_root)
+	var mesh=BoxMesh.new()
+	mesh.size=Vector3(0.025,0.7,0.025)
+	rain_multimesh_410=MultiMesh.new()
+	rain_multimesh_410.transform_format=MultiMesh.TRANSFORM_3D
+	rain_multimesh_410.mesh=mesh
+	rain_multimesh_410.instance_count=42
+	var rain_draw=MultiMeshInstance3D.new()
+	rain_draw.name="RainBatch41"
+	rain_draw.multimesh=rain_multimesh_410
+	rain_draw.material_override=material(Color(0.72,0.84,1.0))
+	rain_root.add_child(rain_draw)
+	rain_drops_410.clear()
+	var rain_basis=Basis(Vector3.RIGHT,deg_to_rad(-12.0))
 	for i in range(42):
-		var drop=MeshInstance3D.new()
-		var mesh=BoxMesh.new()
-		mesh.size=Vector3(0.025,0.7,0.025)
-		drop.mesh=mesh
-		drop.position=Vector3(randf_range(-12,12),randf_range(-2,10),randf_range(-15,8))
-		drop.rotation_degrees.x=-12
-		drop.material_override=material(Color(0.72,0.84,1.0))
-		rain_root.add_child(drop)
+		var drop_pos=Vector3(randf_range(-12.0,12.0),randf_range(-2.0,10.0),randf_range(-15.0,8.0))
+		rain_drops_410.append(drop_pos)
+		rain_multimesh_410.set_instance_transform(i,Transform3D(rain_basis,drop_pos))
 	rain_root.visible=false
 
 
@@ -1402,6 +1481,9 @@ func create_environment():
 	sun.light_energy=1.35
 	sun.light_color=Color(1.0,0.94,0.84)
 	sun.shadow_enabled=true
+	# 41.0: Two shadow splits keep nearby car shadows, but reduce mobile GPU work.
+	sun.directional_shadow_mode=DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance=90.0
 	sun_light=sun
 	add_child(sun)
 
@@ -1459,11 +1541,10 @@ void fragment() {
     vec2 p = world_pos_330.xz;
     float fine = hash21(floor(p*15.0));
     float coarse = hash21(floor(p*1.8));
-    float wheel_a = exp(-pow((p.x-2.0)*1.7,2.0));
-    float wheel_b = exp(-pow((p.x+2.0)*1.7,2.0));
-    float wheel_c = exp(-pow((p.x-5.0)*1.7,2.0));
-    float wheel_d = exp(-pow((p.x+5.0)*1.7,2.0));
-    float tracks = (wheel_a+wheel_b+wheel_c+wheel_d)*0.024;
+    // 41.0: two symmetric tracks instead of four expensive exp/pow calls.
+    float inner_track = 1.0-smoothstep(0.05,0.85,abs(abs(p.x)-2.0));
+    float outer_track = 1.0-smoothstep(0.05,0.85,abs(abs(p.x)-5.0));
+    float tracks = (inner_track+outer_track)*0.024;
     // 38.0: subtle asphalt wear, tar repairs and brighter road shoulders.
     float grain = (fine-0.5)*0.052 + (coarse-0.5)*0.027 - tracks;
     float seam = 1.0-step(0.065,fract(abs(p.y)/26.0));
@@ -2075,9 +2156,13 @@ func batch_static_world_400()->void:
 	for instance in source_boxes:
 		var mat=instance.material_override
 		var box_mesh=instance.mesh as BoxMesh
-		# Chunk the instances: a single 3 km MultiMesh harms frustum culling.
+		# Do not merge 3 km road strips with other nearby boxes: huge bounds
+		# defeat frustum culling. Split ordinary scenery by Z and roadside X.
+		if box_mesh.size.z>240.0 or box_mesh.size.x>120.0:
+			continue
 		var segment=int(floor(instance.global_position.z/240.0))
-		var key=str(mat.get_instance_id())+"_"+str(segment)
+		var side_chunk=int(floor(instance.global_position.x/36.0))
+		var key=str(mat.get_instance_id())+"_"+str(segment)+"_"+str(side_chunk)
 		if not buckets.has(key):
 			buckets[key]={"mat":mat,"transforms":[],"nodes":[]}
 		var transform=Transform3D(instance.global_transform.basis.scaled(box_mesh.size),instance.global_position)
@@ -2105,7 +2190,7 @@ func batch_static_world_400()->void:
 		batched_box_count_400+=transforms.size()
 		for instance in entry["nodes"]:
 			instance.queue_free()
-	print("AUTO BOSS 40.0: ",batched_box_count_400," world boxes -> ",batched_draw_groups_400," MultiMesh draw groups")
+	print("AUTO BOSS 41.0: ",batched_box_count_400," world boxes -> ",batched_draw_groups_400," MultiMesh draw groups")
 
 
 func create_player():
@@ -2459,7 +2544,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 40.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 41.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
