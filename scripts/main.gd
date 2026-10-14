@@ -24,6 +24,9 @@ var world_update_accumulator_350=0.0
 var hud_accumulator_390=0.0
 var traffic_scan_accumulator_390=0.0
 var traffic_scan_due_390=false
+# 40.0: Static roadside boxes are merged by material and 240 m world chunk.
+var batched_box_count_400=0
+var batched_draw_groups_400=0
 # 36.0: Batched vegetation (shared geometry/materials instead of hundreds of nodes).
 var forest_batches_360={}
 var forest_counts_360={}
@@ -164,6 +167,8 @@ func _ready():
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
+	# The scenery is static. Batch only now, BEFORE cars, rain and UI exist.
+	batch_static_world_400()
 	create_player()
 	create_rain_system()
 	create_ui()
@@ -183,6 +188,10 @@ func _physics_process(delta):
 	update_player(delta)
 	wrap_road()
 	update_camera()
+	# Rain origin follows the moving car every physics frame; weather particles
+	# and lighting still use the existing slower 10 Hz update.
+	if rain_root!=null and rain_root.visible:
+		rain_root.global_position=car.global_position+Vector3(0,7,-8)
 	update_traffic(delta)
 	update_service()
 	update_mission(delta)
@@ -819,6 +828,9 @@ func start_mission():
 	car.position=Vector3(0,0,0)
 
 	rebuild_player()
+	car.reset_physics_interpolation()
+	update_camera()
+	cam.reset_physics_interpolation()
 
 	for t in traffic:
 		if is_instance_valid(t):
@@ -866,10 +878,15 @@ func wrap_road():
 	# davon unberührt und laufen normal weiter.
 	if car.position.z < -1400.0:
 		car.position.z += 1200.0
+		car.reset_physics_interpolation()
 
 		for t in traffic:
 			if is_instance_valid(t):
 				t.position.z += 1200.0
+				t.reset_physics_interpolation()
+		# Avoid blending the camera between both ends of the looped road.
+		update_camera()
+		cam.reset_physics_interpolation()
 
 
 func update_camera():
@@ -1094,6 +1111,8 @@ func spawn_traffic(z_pos):
 	add_traffic_detail_190(t,traffic_type)
 
 	traffic.append(t)
+	# A newly spawned traffic car must not interpolate from the origin.
+	t.reset_physics_interpolation()
 
 
 func update_traffic(delta):
@@ -1326,10 +1345,12 @@ func update_road_events_40(delta):
 	if police_heat>=4 and camera_cooldown<=0.0:
 		event_text="🚓 POLIZEI-WARNUNG • Tempo reduzieren!"
 
-	if event_label!=null:
+	if event_label!=null and event_label.text!=event_text:
 		event_label.text=event_text
 	if fine_label!=null:
-		fine_label.text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
+		var fine_text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
+		if fine_label.text!=fine_text:
+			fine_label.text=fine_text
 
 
 func create_rain_system():
@@ -1909,13 +1930,16 @@ func update_service():
 			break
 
 	if near_service:
-		service_label.text=current_service_name+"  •  "+str(current_fuel_price)+" €/L"
-		refuel_button.visible=true
-		repair_button.visible=true
+		var service_text=current_service_name+"  •  "+str(current_fuel_price)+" €/L"
+		if service_label.text!=service_text:
+			service_label.text=service_text
 	else:
-		service_label.text=""
-		refuel_button.visible=false
-		repair_button.visible=false
+		if service_label.text!="":
+			service_label.text=""
+	if refuel_button.visible!=near_service:
+		refuel_button.visible=near_service
+	if repair_button.visible!=near_service:
+		repair_button.visible=near_service
 
 
 func refuel_car():
@@ -2031,6 +2055,57 @@ func tree(pos):
 		for layer in range(1,4):
 			var offset=Vector3(cos(angle+float(layer)*2.1)*0.65,0,sin(angle+float(layer)*2.1)*0.65)
 			forest_part_360(species,layer,pos+Vector3(0,height*0.76,0)+offset,Vector3(1.38,height*0.21,1.25),angle)
+
+
+# AUTO BOSS 40.0 - Mobile GPU batching for immovable road scenery.
+# Collect visible static cubes before any cars or UI are created.
+# We keep ShaderMaterial ground/asphalt meshes and non-BoxMesh geometry intact.
+func collect_static_boxes_400(root:Node, out:Array)->void:
+	for child in root.get_children():
+		if child is MeshInstance3D and child.mesh is BoxMesh and child.material_override is StandardMaterial3D and child.get_child_count()==0:
+			out.append(child)
+		else:
+			collect_static_boxes_400(child,out)
+
+
+func batch_static_world_400()->void:
+	var source_boxes=[]
+	collect_static_boxes_400(self,source_boxes)
+	var buckets={}
+	for instance in source_boxes:
+		var mat=instance.material_override
+		var box_mesh=instance.mesh as BoxMesh
+		# Chunk the instances: a single 3 km MultiMesh harms frustum culling.
+		var segment=int(floor(instance.global_position.z/240.0))
+		var key=str(mat.get_instance_id())+"_"+str(segment)
+		if not buckets.has(key):
+			buckets[key]={"mat":mat,"transforms":[],"nodes":[]}
+		var transform=Transform3D(instance.global_transform.basis.scaled(box_mesh.size),instance.global_position)
+		buckets[key]["transforms"].append(transform)
+		buckets[key]["nodes"].append(instance)
+
+	var unit_box=BoxMesh.new()
+	unit_box.size=Vector3.ONE
+	for entry in buckets.values():
+		var transforms:Array=entry["transforms"]
+		if transforms.size()<2:
+			continue
+		var multi=MultiMesh.new()
+		multi.transform_format=MultiMesh.TRANSFORM_3D
+		multi.mesh=unit_box
+		multi.instance_count=transforms.size()
+		for i in range(transforms.size()):
+			multi.set_instance_transform(i,transforms[i])
+		var draw=MultiMeshInstance3D.new()
+		draw.name="RoadBatch40"
+		draw.multimesh=multi
+		draw.material_override=entry["mat"]
+		add_child(draw)
+		batched_draw_groups_400+=1
+		batched_box_count_400+=transforms.size()
+		for instance in entry["nodes"]:
+			instance.queue_free()
+	print("AUTO BOSS 40.0: ",batched_box_count_400," world boxes -> ",batched_draw_groups_400," MultiMesh draw groups")
 
 
 func create_player():
@@ -2384,7 +2459,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 39.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 40.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
