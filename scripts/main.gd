@@ -168,6 +168,7 @@ func _ready():
 	create_graphics_revolution_210()
 	create_realism_revolution_220()
 	create_next_gen_landscape_260()
+	create_roadside_nature_420()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -667,7 +668,7 @@ func show_main_menu():
 	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("20.0  •  HIGHWAY REVOLUTION",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("42.0  •  NATURAL ROADSIDE",Vector2(50,94),16,Color(0.16,0.70,1.0))
 	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
@@ -755,7 +756,7 @@ func show_garage():
 	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 20.0 • PERFORMANCE STUDIO"
+	title.text="GARAGE 42.0 • PERFORMANCE STUDIO"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -2190,7 +2191,7 @@ func batch_static_world_400()->void:
 		batched_box_count_400+=transforms.size()
 		for instance in entry["nodes"]:
 			instance.queue_free()
-	print("AUTO BOSS 41.0: ",batched_box_count_400," world boxes -> ",batched_draw_groups_400," MultiMesh draw groups")
+	print("AUTO BOSS 42.0: ",batched_box_count_400," world boxes -> ",batched_draw_groups_400," MultiMesh draw groups")
 
 
 func create_player():
@@ -2544,7 +2545,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 41.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 42.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2790,7 +2791,7 @@ func create_visual_revolution_160():
 			add_child(label)
 	# Dunklere Asphalt-Inlays erzeugen Geschwindigkeit und brechen die flache Fläche.
 	for z in range(-120,-2880,-260):
-		station_box(self,Vector3(13.8,0.012,18.0),Vector3(0,0.145,z),Color(0.105,0.11,0.12))
+		station_box(self,Vector3(13.8,0.012,18.0),Vector3(0,0.145,z),Color(0.145,0.149,0.153))
 
 func create_tree_cluster_150(pos:Vector3):
 	# Nutzt die abwechslungsreichen Baumformen der Version 27.0.
@@ -2920,7 +2921,7 @@ func create_world_revolution_180():
 		station_box(self,Vector3(0.12,0.035,0.42),Vector3(-7.82,0.235,z),Color(0.93,0.80,0.35))
 		station_box(self,Vector3(0.12,0.035,0.42),Vector3(7.82,0.235,z-15),Color(0.93,0.80,0.35))
 	for z in range(-110,-2920,-220):
-		station_box(self,Vector3(14.6,0.008,0.055),Vector3(0,0.218,z),Color(0.035,0.038,0.043))
+		station_box(self,Vector3(14.6,0.008,0.055),Vector3(0,0.218,z),Color(0.118,0.124,0.129))
 
 	# Große deutsche Schilderbrücken mit mehreren Tafeln statt leerer Balken.
 	create_sign_gantry_180(-520.0,"A 81  HEILBRONN","A 6  MANNHEIM")
@@ -3453,3 +3454,113 @@ func create_next_gen_landscape_260():
 	for z in range(-90,-2900,-155):
 		for lane_x in [-5.0,1.0,5.0]:
 			station_box(self,Vector3(0.36,0.008,12.0),Vector3(lane_x,0.213,float(z)),Color(0.15,0.155,0.16))
+
+
+# AUTO BOSS 42.0 – naturally coloured motorway verges and GPU-instanced shrubs.
+# Observation behind this version: on real Samsung capture, both sides of the
+# motorway looked like almost white, empty plains. These meshes visually mask
+# that terrain without changing vehicle physics, terrain collision, or saving.
+func create_roadside_nature_420()->void:
+	create_green_verges_420()
+	create_shrub_batches_420()
+
+
+# One shared, vertex-coloured mesh (not hundreds of separate boxes).
+# Strips are at y=0.008, higher than the old terrain's -0.05 top, but below
+# existing raised service forecourts and highway installations.
+func create_green_verges_420()->void:
+	var surface=SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var edges=[10.8,14.0,21.0,30.0,39.0]
+	var band_colors=[
+		Color(0.30,0.32,0.26), # gravel verge directly next to guardrail
+		Color(0.17,0.30,0.12), # darker, rough grass
+		Color(0.21,0.35,0.15), # meadow
+		Color(0.23,0.34,0.13)  # distant meadow
+	]
+	for side in [-1.0,1.0]:
+		for section in range(150):
+			var z0=-float(section)*20.0
+			var z1=z0-20.0
+			for band in range(4):
+				var jitter0=0.0 if band==0 else sin(float(section)*0.52+float(band)*1.72)*0.65
+				var jitter1=0.0 if band==0 else sin(float(section+1)*0.52+float(band)*1.72)*0.65
+				var next0=0.0 if band==3 else sin(float(section)*0.52+float(band+1)*1.72)*0.65
+				var next1=0.0 if band==3 else sin(float(section+1)*0.52+float(band+1)*1.72)*0.65
+				var x0=side*(float(edges[band])+jitter0)
+				var x1=side*(float(edges[band+1])+next0)
+				var x2=side*(float(edges[band])+jitter1)
+				var x3=side*(float(edges[band+1])+next1)
+				var shade=0.88+0.12*sin(float(section)*1.91+float(band)*2.2)
+				var base_color:Color=band_colors[band]*shade
+				base_color.a=1.0
+				var a=Vector3(x0,0.008,z0)
+				var b=Vector3(x1,0.008,z0)
+				var c=Vector3(x2,0.008,z1)
+				var d=Vector3(x3,0.008,z1)
+				add_verge_triangle_420(surface,a,b,c,base_color)
+				add_verge_triangle_420(surface,b,d,c,base_color)
+	var verge_mesh=MeshInstance3D.new()
+	verge_mesh.name="NaturalVerges42"
+	verge_mesh.mesh=surface.commit()
+	var verge_material=StandardMaterial3D.new()
+	verge_material.vertex_color_use_as_albedo=true
+	verge_material.roughness=1.0
+	verge_material.cull_mode=BaseMaterial3D.CULL_DISABLED
+	verge_mesh.material_override=verge_material
+	add_child(verge_mesh)
+
+
+func add_verge_triangle_420(surface:SurfaceTool,a:Vector3,b:Vector3,c:Vector3,color_value:Color)->void:
+	for point in [a,b,c]:
+		surface.set_color(color_value)
+		surface.set_normal(Vector3.UP)
+		surface.add_vertex(point)
+
+
+# Bushes are bundled into ~220m segments so the mobile renderer can cull
+# offscreen chunks. Each bush is a tiny 7-sided spheroid: no dynamic physics.
+func create_shrub_batches_420()->void:
+	var shrub_mesh=SphereMesh.new()
+	shrub_mesh.radius=1.0
+	shrub_mesh.height=2.0
+	shrub_mesh.radial_segments=7
+	shrub_mesh.rings=4
+	var foliage=StandardMaterial3D.new()
+	foliage.albedo_color=Color.WHITE
+	foliage.roughness=1.0
+	foliage.vertex_color_use_as_albedo=true
+	var random=RandomNumberGenerator.new()
+	random.seed=420042
+	for chunk in range(14):
+		var transforms:Array[Transform3D]=[]
+		var tints:Array[Color]=[]
+		for side in [-1.0,1.0]:
+			for i in range(30):
+				var z=-float(chunk)*215.0-random.randf_range(8.0,210.0)
+				if z < -2980.0:
+					continue
+				var x=side*random.randf_range(15.5,37.5)
+				if is_service_clear_zone_200(z) and abs(x)<29.0:
+					continue
+				var height=random.randf_range(0.40,1.45)
+				var spread=random.randf_range(0.7,1.55)
+				var basis=Basis(Vector3.UP,random.randf_range(-PI,PI)).scaled(Vector3(spread,height*0.5,spread*0.78))
+				transforms.append(Transform3D(basis,Vector3(x,height*0.51,z)))
+				var hue=random.randf_range(0.82,1.21)
+				tints.append(Color(0.18*hue,0.31*hue,0.13*hue,1.0))
+		if transforms.is_empty():
+			continue
+		var batch=MultiMesh.new()
+		batch.transform_format=MultiMesh.TRANSFORM_3D
+		batch.use_colors=true
+		batch.mesh=shrub_mesh
+		batch.instance_count=transforms.size()
+		for i in range(transforms.size()):
+			batch.set_instance_transform(i,transforms[i])
+			batch.set_instance_color(i,tints[i])
+		var display=MultiMeshInstance3D.new()
+		display.name="ShrubChunk42_"+str(chunk)
+		display.multimesh=batch
+		display.material_override=foliage
+		add_child(display)
