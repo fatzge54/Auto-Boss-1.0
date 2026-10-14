@@ -20,6 +20,10 @@ var traffic=[]
 var traffic_timer=0.0
 # 35.0: Wetter/Licht in festen Intervallen statt bei jedem Physik-Tick.
 var world_update_accumulator_350=0.0
+# 39.0: limit expensive HUD text updates and AI proximity checks.
+var hud_accumulator_390=0.0
+var traffic_scan_accumulator_390=0.0
+var traffic_scan_due_390=false
 # 36.0: Batched vegetation (shared geometry/materials instead of hundreds of nodes).
 var forest_batches_360={}
 var forest_counts_360={}
@@ -182,7 +186,10 @@ func _physics_process(delta):
 	update_traffic(delta)
 	update_service()
 	update_mission(delta)
-	update_hud()
+	hud_accumulator_390+=delta
+	if hud_accumulator_390>=0.20:
+		update_hud()
+		hud_accumulator_390=0.0
 
 
 func save_game():
@@ -1091,6 +1098,10 @@ func spawn_traffic(z_pos):
 
 func update_traffic(delta):
 	traffic_timer+=delta
+	traffic_scan_accumulator_390+=delta
+	traffic_scan_due_390=traffic_scan_accumulator_390>=0.25
+	if traffic_scan_due_390:
+		traffic_scan_accumulator_390=0.0
 
 	var spawn_delay=max(1.30,2.45-float(company_level())*0.08)
 	if traffic_timer>spawn_delay:
@@ -1111,16 +1122,16 @@ func update_traffic(delta):
 		var target_x=float(t.get_meta("target_x",t.position.x))
 
 		# Abstand halten: erkennt ein Fahrzeug direkt voraus.
-		for other in traffic:
-			if other==t or not is_instance_valid(other):
-				continue
-			if abs(other.position.x-t.position.x)<1.8:
-				var gap=t.position.z-other.position.z
-				if gap>0.0 and gap<24.0:
-					ai_speed=max(10.0,ai_speed-10.0)
-					lane_timer=0.0
-					break
-
+		if traffic_scan_due_390:
+			for other in traffic:
+				if other==t or not is_instance_valid(other):
+					continue
+				if abs(other.position.x-t.position.x)<1.8:
+					var gap=t.position.z-other.position.z
+					if gap>0.0 and gap<24.0:
+						ai_speed=max(10.0,ai_speed-10.0)
+						lane_timer=0.0
+						break
 		# Gelegentlicher Spurwechsel / Überholen.
 		if lane_timer<=0.0:
 			lane_timer=randf_range(6.0,11.0)
@@ -2373,7 +2384,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 38.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 39.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
