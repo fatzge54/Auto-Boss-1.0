@@ -18,6 +18,8 @@ var mission_finished=false
 var distance_left=0.0
 var traffic=[]
 var traffic_timer=0.0
+# 35.0: Wetter/Licht in festen Intervallen statt bei jedem Physik-Tick.
+var world_update_accumulator_350=0.0
 
 var routes=[
 	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":295,"rep":15,"class":"STANDARD","risk":"NORMAL"},
@@ -166,7 +168,10 @@ func _physics_process(delta):
 	if game_state!="driving":
 		return
 
-	update_world_30(delta)
+	world_update_accumulator_350+=delta
+	if world_update_accumulator_350>=0.10:
+		update_world_30(world_update_accumulator_350)
+		world_update_accumulator_350=0.0
 	update_road_events_40(delta)
 	update_player(delta)
 	wrap_road()
@@ -1419,9 +1424,22 @@ func create_road():
 	box(Vector3(2.2,0.10,3000),Vector3(-10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 	box(Vector3(2.2,0.10,3000),Vector3(10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 
+	# 35.0: Eine MultiMesh-Instanz statt 240 separater Fahrbahnmarkierungen.
+	var dash_mesh=BoxMesh.new()
+	dash_mesh.size=Vector3(0.18,0.05,8.0)
+	var dashes=MultiMesh.new()
+	dashes.transform_format=MultiMesh.TRANSFORM_3D
+	dashes.mesh=dash_mesh
+	dashes.instance_count=240
+	var dash_index=0
 	for x in [-3.0,3.0]:
 		for z in range(0,3000,25):
-			box(Vector3(0.18,0.05,8),Vector3(x,0.15,-z),Color.WHITE)
+			dashes.set_instance_transform(dash_index,Transform3D(Basis(),Vector3(x,0.15,-float(z))))
+			dash_index+=1
+	var dash_instance=MultiMeshInstance3D.new()
+	dash_instance.multimesh=dashes
+	dash_instance.material_override=material(Color.WHITE)
+	add_child(dash_instance)
 
 	box(Vector3(0.18,0.05,3000),Vector3(-8.0,0.15,-1500),Color.WHITE)
 	box(Vector3(0.18,0.05,3000),Vector3(8.0,0.15,-1500),Color.WHITE)
@@ -2280,7 +2298,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 34.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 35.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2360,9 +2378,15 @@ func box(size_value,pos,color_value):
 	add_child(obj)
 
 
+var material_cache_350={}
 func material(color_value):
+	# 35.0: Identische Farben teilen sich ein Material / weniger Ressourcen.
+	var key=color_value.to_html(true)
+	if material_cache_350.has(key):
+		return material_cache_350[key]
 	var m=StandardMaterial3D.new()
 	m.albedo_color=color_value
+	material_cache_350[key]=m
 	return m
 
 
