@@ -20,6 +20,9 @@ var traffic=[]
 var traffic_timer=0.0
 # 35.0: Wetter/Licht in festen Intervallen statt bei jedem Physik-Tick.
 var world_update_accumulator_350=0.0
+# 36.0: Batched vegetation (shared geometry/materials instead of hundreds of nodes).
+var forest_batches_360={}
+var forest_counts_360={}
 
 var routes=[
 	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":295,"rep":15,"class":"STANDARD","risk":"NORMAL"},
@@ -1371,22 +1374,39 @@ func create_environment():
 	add_child(sun)
 
 
+# 37.0: A single terrain draw call with GPU-generated grass and distant fields.
+# Replaces 44 separate field planes and avoids additional texture downloads.
 func create_ground():
-	# 32.0: layered terrain colors and agricultural fields; no texture downloads.
-	box(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),Color(0.22,0.35,0.17))
-	var field_colors=[Color(0.28,0.39,0.19),Color(0.36,0.39,0.20),Color(0.23,0.32,0.17),Color(0.38,0.34,0.17)]
-	for i in range(22):
-		var z=-95.0-float(i)*132.0
-		for side in [-1.0,1.0]:
-			var width=randf_range(12.0,22.0)
-			var field=MeshInstance3D.new()
-			var mesh=PlaneMesh.new()
-			mesh.size=Vector2(width,randf_range(76.0,119.0))
-			field.mesh=mesh
-			field.position=Vector3(side*(27.0+width*0.45),0.008,z)
-			field.material_override=material(field_colors[(i+(1 if side>0 else 0))%field_colors.size()])
-			add_child(field)
-
+ var ground=MeshInstance3D.new()
+ var terrain=BoxMesh.new()
+ terrain.size=Vector3(120.0,0.5,3000.0)
+ ground.mesh=terrain
+ ground.position=Vector3(0,-0.3,-1500)
+ var terrain_shader=Shader.new()
+ terrain_shader.code="""shader_type spatial;
+render_mode diffuse_burley, specular_schlick_ggx;
+varying vec3 world_position;
+void vertex() { world_position=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz; }
+float noise2(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+void fragment() {
+ vec2 p=world_position.xz;
+ // 38.0: multi-scale meadow with irregular field edges and crop rows.
+ float macro=noise2(floor(p/19.0));
+ float micro=noise2(floor(p*2.4));
+ float field_boundary=24.0+4.0*(noise2(floor(p.y/48.0))-0.5);
+ float farmland=step(field_boundary,abs(p.x))*step(0.38,fract(abs(p.y)/137.0));
+ float crop_rows=0.5+0.5*sin(p.x*1.35 + p.y*0.025);
+ float worn_grass=step(0.84,noise2(floor(p/5.0)))*0.12;
+ vec3 meadow=mix(vec3(0.125,0.235,0.09),vec3(0.245,0.34,0.135),macro);
+ vec3 crops=mix(vec3(0.245,0.275,0.095),vec3(0.39,0.355,0.16),crop_rows);
+ ALBEDO=mix(meadow,crops,farmland*0.85)+(micro-0.5)*0.045-worn_grass*vec3(0.10,0.08,0.03);
+ ROUGHNESS=1.0;
+}
+"""
+ var terrain_material=ShaderMaterial.new()
+ terrain_material.shader=terrain_shader
+ ground.material_override=terrain_material
+ add_child(ground)
 
 
 # AUTO BOSS 34.0: asphalt grain generated on the GPU, without texture downloads.
@@ -1407,10 +1427,19 @@ void fragment() {
     vec2 p = world_pos_330.xz;
     float fine = hash21(floor(p*15.0));
     float coarse = hash21(floor(p*1.8));
-    float tracks = exp(-pow(abs(fract((p.x+9.0)/3.0)-0.32)*11.0,2.0))*0.045;
-    float grain = (fine-0.5)*0.045 + (coarse-0.5)*0.035 - tracks;
-    ALBEDO = vec3(0.125,0.132,0.143) + vec3(grain);
-    ROUGHNESS = 0.89;
+    float wheel_a = exp(-pow((p.x-2.0)*1.7,2.0));
+    float wheel_b = exp(-pow((p.x+2.0)*1.7,2.0));
+    float wheel_c = exp(-pow((p.x-5.0)*1.7,2.0));
+    float wheel_d = exp(-pow((p.x+5.0)*1.7,2.0));
+    float tracks = (wheel_a+wheel_b+wheel_c+wheel_d)*0.024;
+    // 38.0: subtle asphalt wear, tar repairs and brighter road shoulders.
+    float grain = (fine-0.5)*0.052 + (coarse-0.5)*0.027 - tracks;
+    float seam = 1.0-step(0.065,fract(abs(p.y)/26.0));
+    float patch = step(0.92,hash21(floor(p/8.0)))*0.017;
+    float edge_wear = smoothstep(6.6,8.9,abs(p.x))*0.032;
+    float variation = grain - seam*0.012 - patch + edge_wear;
+    ALBEDO = vec3(0.155,0.160,0.163) + vec3(variation);
+    ROUGHNESS = 0.91;
     METALLIC = 0.0;
 }
 """
@@ -1447,9 +1476,23 @@ func create_road():
 	box(Vector3(0.18,0.35,3000),Vector3(-9.2,0.65,-1500),Color(0.75,0.77,0.80))
 	box(Vector3(0.18,0.35,3000),Vector3(9.2,0.65,-1500),Color(0.75,0.77,0.80))
 
+	# 38.0: roadside reflectors share one mesh and one draw batch.
+	var reflector_mesh=BoxMesh.new()
+	reflector_mesh.size=Vector3(0.10,0.08,0.30)
+	var reflectors=MultiMesh.new()
+	reflectors.transform_format=MultiMesh.TRANSFORM_3D
+	reflectors.mesh=reflector_mesh
+	reflectors.instance_count=120
+	var reflector_idx=0
 	for z in range(-25,-3000,-50):
-		box(Vector3(0.10,0.08,0.30),Vector3(-8.0,0.22,z),Color(0.95,0.95,0.80))
-		box(Vector3(0.10,0.08,0.30),Vector3(8.0,0.22,z-25),Color(0.95,0.95,0.80))
+		reflectors.set_instance_transform(reflector_idx,Transform3D(Basis(),Vector3(-8.0,0.22,z)))
+		reflector_idx+=1
+		reflectors.set_instance_transform(reflector_idx,Transform3D(Basis(),Vector3(8.0,0.22,z-25)))
+		reflector_idx+=1
+	var reflector_instance=MultiMeshInstance3D.new()
+	reflector_instance.multimesh=reflectors
+	reflector_instance.material_override=material(Color(0.95,0.95,0.80))
+	add_child(reflector_instance)
 
 
 func create_scenery():
@@ -1905,46 +1948,78 @@ func repair_car():
 	service_label.text="Fahrzeug repariert: -"+str(cost)+" €"
 
 
-func tree(pos):
-	# 32.0: asymmetrical low-poly canopies, mixed heights and forest shades.
-	var root=Node3D.new()
-	root.position=pos
-	root.rotation.y=randf_range(-PI,PI)
-	add_child(root)
-	var h=randf_range(4.2,7.2)
-	var trunk=MeshInstance3D.new()
-	var tm=CylinderMesh.new()
-	tm.top_radius=0.13
-	tm.bottom_radius=0.30
-	tm.height=h*0.62
-	trunk.mesh=tm
-	trunk.position.y=tm.height*0.5
-	trunk.material_override=material(Color(0.26,0.18,0.115))
-	root.add_child(trunk)
-	var base=Color(randf_range(0.07,0.13),randf_range(0.24,0.36),randf_range(0.075,0.14))
-	if randf()<0.48:
-		for i in range(4):
-			var foliage=MeshInstance3D.new()
-			var cone=CylinderMesh.new()
-			cone.top_radius=0.02
-			cone.bottom_radius=1.50-float(i)*0.24
-			cone.height=2.1
-			foliage.mesh=cone
-			foliage.position.y=h*0.39+float(i)*0.64
-			foliage.material_override=material(base.lightened(float(i)*0.045))
-			root.add_child(foliage)
+# AUTO BOSS 36.0 – WORLD VISUAL REVOLUTION
+# One MultiMesh per tree species / part. All trees share meshes and materials.
+func forest_batch_360(species:int,part:int)->MultiMesh:
+	var key=str(species)+"_"+str(part)
+	if forest_batches_360.has(key):
+		return forest_batches_360[key]
+	var mesh:PrimitiveMesh
+	if part==0:
+		var trunk=CylinderMesh.new()
+		trunk.top_radius=0.16
+		trunk.bottom_radius=0.27
+		trunk.height=1.0
+		trunk.radial_segments=7
+		mesh=trunk
+	elif species==0:
+		var needles=CylinderMesh.new()
+		needles.top_radius=0.04
+		needles.bottom_radius=0.95
+		needles.height=1.0
+		needles.radial_segments=9
+		mesh=needles
 	else:
-		for i in range(5):
-			var foliage=MeshInstance3D.new()
-			var crown=SphereMesh.new()
-			crown.radius=1.0
-			crown.height=2.0
-			foliage.mesh=crown
-			foliage.scale=Vector3(randf_range(0.78,1.15),randf_range(0.68,0.96),randf_range(0.78,1.15))
-			foliage.position=Vector3(randf_range(-0.75,0.75),h*0.69+randf_range(-0.25,0.65),randf_range(-0.65,0.65))
-			foliage.material_override=material(base.lightened(float(i)*0.025))
-			root.add_child(foliage)
+		var leaves=SphereMesh.new()
+		leaves.radius=1.0
+		leaves.height=2.0
+		leaves.radial_segments=10
+		leaves.rings=5
+		mesh=leaves
+	var batch=MultiMesh.new()
+	batch.transform_format=MultiMesh.TRANSFORM_3D
+	batch.mesh=mesh
+	batch.instance_count=1000
+	batch.visible_instance_count=0
+	var display=MultiMeshInstance3D.new()
+	display.multimesh=batch
+	if part==0:
+		display.material_override=material(Color(0.25,0.18,0.12))
+	elif species==0:
+		display.material_override=material(Color(0.09,0.29,0.13))
+	else:
+		display.material_override=material(Color(0.16,0.35,0.13))
+	add_child(display)
+	forest_batches_360[key]=batch
+	forest_counts_360[key]=0
+	return batch
 
+func forest_part_360(species:int,part:int,origin:Vector3,scale_value:Vector3,angle:float)->void:
+	var batch=forest_batch_360(species,part)
+	var key=str(species)+"_"+str(part)
+	var index=int(forest_counts_360[key])
+	if index>=batch.instance_count:
+		return
+	var basis=Basis(Vector3.UP,angle).scaled(scale_value)
+	batch.set_instance_transform(index,Transform3D(basis,origin))
+	forest_counts_360[key]=index+1
+	batch.visible_instance_count=index+1
+
+func tree(pos):
+	# Species mix, varied silhouettes, small randomized crown offsets.
+	# GPU instancing keeps the scene graph lightweight on Android.
+	var species=0 if randf()<0.55 else 1
+	var height=randf_range(5.2,8.0)
+	var angle=randf_range(-PI,PI)
+	forest_part_360(species,0,pos+Vector3(0,height*0.29,0),Vector3(1.0,height*0.58,1.0),angle)
+	if species==0:
+		for layer in range(1,4):
+			var width=1.65-float(layer)*0.22
+			forest_part_360(species,layer,pos+Vector3(0,height*(0.38+float(layer)*0.17),0),Vector3(width,height*0.30,width),angle)
+	else:
+		for layer in range(1,4):
+			var offset=Vector3(cos(angle+float(layer)*2.1)*0.65,0,sin(angle+float(layer)*2.1)*0.65)
+			forest_part_360(species,layer,pos+Vector3(0,height*0.76,0)+offset,Vector3(1.38,height*0.21,1.25),angle)
 
 
 func create_player():
@@ -2298,7 +2373,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 35.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 38.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2498,9 +2573,8 @@ func create_road_graphics_150():
 	# 15.0: Asphalt-Schultern, Mittellinien, Rumble-Strips und Reflektoren.
 	station_box(self,Vector3(1.15,0.035,2990),Vector3(-8.62,0.125,-1495),Color(0.15,0.16,0.17))
 	station_box(self,Vector3(1.15,0.035,2990),Vector3(8.62,0.125,-1495),Color(0.15,0.16,0.17))
-	for z in range(-20,-2980,-18):
-		station_box(self,Vector3(0.13,0.045,5.6),Vector3(-3.0,0.19,z),Color(0.94,0.94,0.91))
-		station_box(self,Vector3(0.13,0.045,5.6),Vector3(3.0,0.19,z-9),Color(0.94,0.94,0.91))
+	# 36.0: Avoid second layer of hundreds of overlapping lane dash meshes.
+	# create_road() already draws the dashed center lines with MultiMesh.
 	for z in range(-35,-2980,-34):
 		station_box(self,Vector3(0.26,0.10,0.55),Vector3(-7.72,0.23,z),Color(1.0,0.82,0.34))
 		station_box(self,Vector3(0.26,0.10,0.55),Vector3(7.72,0.23,z-17),Color(1.0,0.82,0.34))
