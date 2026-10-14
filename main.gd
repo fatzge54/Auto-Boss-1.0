@@ -18,6 +18,18 @@ var mission_finished=false
 var distance_left=0.0
 var traffic=[]
 var traffic_timer=0.0
+# 35.0: Wetter/Licht in festen Intervallen statt bei jedem Physik-Tick.
+var world_update_accumulator_350=0.0
+# 39.0: limit expensive HUD text updates and AI proximity checks.
+var hud_accumulator_390=0.0
+var traffic_scan_accumulator_390=0.0
+var traffic_scan_due_390=false
+# 40.0: Static roadside boxes are merged by material and 240 m world chunk.
+var batched_box_count_400=0
+var batched_draw_groups_400=0
+# 36.0: Batched vegetation (shared geometry/materials instead of hundreds of nodes).
+var forest_batches_360={}
+var forest_counts_360={}
 
 var routes=[
 	{"name":"Stuttgart → Frankfurt","distance":205.0,"reward":295,"rep":15,"class":"STANDARD","risk":"NORMAL"},
@@ -155,6 +167,8 @@ func _ready():
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
+	# The scenery is static. Batch only now, BEFORE cars, rain and UI exist.
+	batch_static_world_400()
 	create_player()
 	create_rain_system()
 	create_ui()
@@ -166,15 +180,25 @@ func _physics_process(delta):
 	if game_state!="driving":
 		return
 
-	update_world_30(delta)
+	world_update_accumulator_350+=delta
+	if world_update_accumulator_350>=0.10:
+		update_world_30(world_update_accumulator_350)
+		world_update_accumulator_350=0.0
 	update_road_events_40(delta)
 	update_player(delta)
 	wrap_road()
 	update_camera()
+	# Rain origin follows the moving car every physics frame; weather particles
+	# and lighting still use the existing slower 10 Hz update.
+	if rain_root!=null and rain_root.visible:
+		rain_root.global_position=car.global_position+Vector3(0,7,-8)
 	update_traffic(delta)
 	update_service()
 	update_mission(delta)
-	update_hud()
+	hud_accumulator_390+=delta
+	if hud_accumulator_390>=0.20:
+		update_hud()
+		hud_accumulator_390=0.0
 
 
 func save_game():
@@ -491,7 +515,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 27.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 34.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -536,7 +560,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 27.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 34.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -804,6 +828,9 @@ func start_mission():
 	car.position=Vector3(0,0,0)
 
 	rebuild_player()
+	car.reset_physics_interpolation()
+	update_camera()
+	cam.reset_physics_interpolation()
 
 	for t in traffic:
 		if is_instance_valid(t):
@@ -851,17 +878,24 @@ func wrap_road():
 	# davon unberührt und laufen normal weiter.
 	if car.position.z < -1400.0:
 		car.position.z += 1200.0
+		car.reset_physics_interpolation()
 
 		for t in traffic:
 			if is_instance_valid(t):
 				t.position.z += 1200.0
+				t.reset_physics_interpolation()
+		# Avoid blending the camera between both ends of the looped road.
+		update_camera()
+		cam.reset_physics_interpolation()
 
 
 func update_camera():
 	if camera_mode==1:
-		# Cockpit/Driver view: tief und nah an der Windschutzscheibe.
-		cam.global_position=car.global_position+Vector3(0,1.58,-0.35)
-		cam.look_at(car.global_position+Vector3(0,1.30,-28),Vector3.UP)
+		# 27.1: Frontkamera knapp vor der Karosserie.
+		# Das verhindert, dass Dach/Windschutzscheibe die Sicht schwarz verdecken.
+		# Bewusst als freie Fahrerperspektive statt voll modelliertem Innenraum.
+		cam.global_position=car.global_position+Vector3(0,1.62,-2.42)
+		cam.look_at(car.global_position+Vector3(0,1.35,-30),Vector3.UP)
 	else:
 		cam.global_position=car.global_position+Vector3(0,3.9,7.8)
 		cam.look_at(car.global_position+Vector3(0,0.8,-12),Vector3.UP)
@@ -1077,10 +1111,16 @@ func spawn_traffic(z_pos):
 	add_traffic_detail_190(t,traffic_type)
 
 	traffic.append(t)
+	# A newly spawned traffic car must not interpolate from the origin.
+	t.reset_physics_interpolation()
 
 
 func update_traffic(delta):
 	traffic_timer+=delta
+	traffic_scan_accumulator_390+=delta
+	traffic_scan_due_390=traffic_scan_accumulator_390>=0.25
+	if traffic_scan_due_390:
+		traffic_scan_accumulator_390=0.0
 
 	var spawn_delay=max(1.30,2.45-float(company_level())*0.08)
 	if traffic_timer>spawn_delay:
@@ -1101,16 +1141,16 @@ func update_traffic(delta):
 		var target_x=float(t.get_meta("target_x",t.position.x))
 
 		# Abstand halten: erkennt ein Fahrzeug direkt voraus.
-		for other in traffic:
-			if other==t or not is_instance_valid(other):
-				continue
-			if abs(other.position.x-t.position.x)<1.8:
-				var gap=t.position.z-other.position.z
-				if gap>0.0 and gap<24.0:
-					ai_speed=max(10.0,ai_speed-10.0)
-					lane_timer=0.0
-					break
-
+		if traffic_scan_due_390:
+			for other in traffic:
+				if other==t or not is_instance_valid(other):
+					continue
+				if abs(other.position.x-t.position.x)<1.8:
+					var gap=t.position.z-other.position.z
+					if gap>0.0 and gap<24.0:
+						ai_speed=max(10.0,ai_speed-10.0)
+						lane_timer=0.0
+						break
 		# Gelegentlicher Spurwechsel / Überholen.
 		if lane_timer<=0.0:
 			lane_timer=randf_range(6.0,11.0)
@@ -1305,10 +1345,12 @@ func update_road_events_40(delta):
 	if police_heat>=4 and camera_cooldown<=0.0:
 		event_text="🚓 POLIZEI-WARNUNG • Tempo reduzieren!"
 
-	if event_label!=null:
+	if event_label!=null and event_label.text!=event_text:
 		event_label.text=event_text
 	if fine_label!=null:
-		fine_label.text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
+		var fine_text="LIMIT "+str(speed_limit)+"  •  Bußgeld "+str(fines_total)+" €"
+		if fine_label.text!=fine_text:
+			fine_label.text=fine_text
 
 
 func create_rain_system():
@@ -1364,18 +1406,101 @@ func create_environment():
 	add_child(sun)
 
 
+# 37.0: A single terrain draw call with GPU-generated grass and distant fields.
+# Replaces 44 separate field planes and avoids additional texture downloads.
 func create_ground():
-	box(Vector3(120,0.5,3000),Vector3(0,-0.3,-1500),Color(0.26,0.43,0.20))
+ var ground=MeshInstance3D.new()
+ var terrain=BoxMesh.new()
+ terrain.size=Vector3(120.0,0.5,3000.0)
+ ground.mesh=terrain
+ ground.position=Vector3(0,-0.3,-1500)
+ var terrain_shader=Shader.new()
+ terrain_shader.code="""shader_type spatial;
+render_mode diffuse_burley, specular_schlick_ggx;
+varying vec3 world_position;
+void vertex() { world_position=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz; }
+float noise2(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+void fragment() {
+ vec2 p=world_position.xz;
+ // 38.0: multi-scale meadow with irregular field edges and crop rows.
+ float macro=noise2(floor(p/19.0));
+ float micro=noise2(floor(p*2.4));
+ float field_boundary=24.0+4.0*(noise2(floor(p.y/48.0))-0.5);
+ float farmland=step(field_boundary,abs(p.x))*step(0.38,fract(abs(p.y)/137.0));
+ float crop_rows=0.5+0.5*sin(p.x*1.35 + p.y*0.025);
+ float worn_grass=step(0.84,noise2(floor(p/5.0)))*0.12;
+ vec3 meadow=mix(vec3(0.125,0.235,0.09),vec3(0.245,0.34,0.135),macro);
+ vec3 crops=mix(vec3(0.245,0.275,0.095),vec3(0.39,0.355,0.16),crop_rows);
+ ALBEDO=mix(meadow,crops,farmland*0.85)+(micro-0.5)*0.045-worn_grass*vec3(0.10,0.08,0.03);
+ ROUGHNESS=1.0;
+}
+"""
+ var terrain_material=ShaderMaterial.new()
+ terrain_material.shader=terrain_shader
+ ground.material_override=terrain_material
+ add_child(ground)
 
+
+# AUTO BOSS 34.0: asphalt grain generated on the GPU, without texture downloads.
+# Shader stays on one road mesh instead of thousands of individual road objects.
+func create_asphalt_330()->void:
+	var road=MeshInstance3D.new()
+	var shape=BoxMesh.new()
+	shape.size=Vector3(18.0,0.2,3000.0)
+	road.mesh=shape
+	road.position=Vector3(0,0,-1500)
+	var shader=Shader.new()
+	shader.code="""shader_type spatial;
+render_mode diffuse_burley, specular_schlick_ggx;
+varying vec3 world_pos_330;
+void vertex() { world_pos_330 = (MODEL_MATRIX * vec4(VERTEX,1.0)).xyz; }
+float hash21(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+void fragment() {
+    vec2 p = world_pos_330.xz;
+    float fine = hash21(floor(p*15.0));
+    float coarse = hash21(floor(p*1.8));
+    float wheel_a = exp(-pow((p.x-2.0)*1.7,2.0));
+    float wheel_b = exp(-pow((p.x+2.0)*1.7,2.0));
+    float wheel_c = exp(-pow((p.x-5.0)*1.7,2.0));
+    float wheel_d = exp(-pow((p.x+5.0)*1.7,2.0));
+    float tracks = (wheel_a+wheel_b+wheel_c+wheel_d)*0.024;
+    // 38.0: subtle asphalt wear, tar repairs and brighter road shoulders.
+    float grain = (fine-0.5)*0.052 + (coarse-0.5)*0.027 - tracks;
+    float seam = 1.0-step(0.065,fract(abs(p.y)/26.0));
+    float patch = step(0.92,hash21(floor(p/8.0)))*0.017;
+    float edge_wear = smoothstep(6.6,8.9,abs(p.x))*0.032;
+    float variation = grain - seam*0.012 - patch + edge_wear;
+    ALBEDO = vec3(0.155,0.160,0.163) + vec3(variation);
+    ROUGHNESS = 0.91;
+    METALLIC = 0.0;
+}
+"""
+	var mat=ShaderMaterial.new()
+	mat.shader=shader
+	road.material_override=mat
+	add_child(road)
 
 func create_road():
-	box(Vector3(18,0.2,3000),Vector3(0,0,-1500),Color(0.105,0.11,0.125))
+	create_asphalt_330()
 	box(Vector3(2.2,0.10,3000),Vector3(-10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 	box(Vector3(2.2,0.10,3000),Vector3(10.0,-0.02,-1500),Color(0.38,0.39,0.40))
 
+	# 35.0: Eine MultiMesh-Instanz statt 240 separater Fahrbahnmarkierungen.
+	var dash_mesh=BoxMesh.new()
+	dash_mesh.size=Vector3(0.18,0.05,8.0)
+	var dashes=MultiMesh.new()
+	dashes.transform_format=MultiMesh.TRANSFORM_3D
+	dashes.mesh=dash_mesh
+	dashes.instance_count=240
+	var dash_index=0
 	for x in [-3.0,3.0]:
 		for z in range(0,3000,25):
-			box(Vector3(0.18,0.05,8),Vector3(x,0.15,-z),Color.WHITE)
+			dashes.set_instance_transform(dash_index,Transform3D(Basis(),Vector3(x,0.15,-float(z))))
+			dash_index+=1
+	var dash_instance=MultiMeshInstance3D.new()
+	dash_instance.multimesh=dashes
+	dash_instance.material_override=material(Color.WHITE)
+	add_child(dash_instance)
 
 	box(Vector3(0.18,0.05,3000),Vector3(-8.0,0.15,-1500),Color.WHITE)
 	box(Vector3(0.18,0.05,3000),Vector3(8.0,0.15,-1500),Color.WHITE)
@@ -1383,9 +1508,23 @@ func create_road():
 	box(Vector3(0.18,0.35,3000),Vector3(-9.2,0.65,-1500),Color(0.75,0.77,0.80))
 	box(Vector3(0.18,0.35,3000),Vector3(9.2,0.65,-1500),Color(0.75,0.77,0.80))
 
+	# 38.0: roadside reflectors share one mesh and one draw batch.
+	var reflector_mesh=BoxMesh.new()
+	reflector_mesh.size=Vector3(0.10,0.08,0.30)
+	var reflectors=MultiMesh.new()
+	reflectors.transform_format=MultiMesh.TRANSFORM_3D
+	reflectors.mesh=reflector_mesh
+	reflectors.instance_count=120
+	var reflector_idx=0
 	for z in range(-25,-3000,-50):
-		box(Vector3(0.10,0.08,0.30),Vector3(-8.0,0.22,z),Color(0.95,0.95,0.80))
-		box(Vector3(0.10,0.08,0.30),Vector3(8.0,0.22,z-25),Color(0.95,0.95,0.80))
+		reflectors.set_instance_transform(reflector_idx,Transform3D(Basis(),Vector3(-8.0,0.22,z)))
+		reflector_idx+=1
+		reflectors.set_instance_transform(reflector_idx,Transform3D(Basis(),Vector3(8.0,0.22,z-25)))
+		reflector_idx+=1
+	var reflector_instance=MultiMeshInstance3D.new()
+	reflector_instance.multimesh=reflectors
+	reflector_instance.material_override=material(Color(0.95,0.95,0.80))
+	add_child(reflector_instance)
 
 
 func create_scenery():
@@ -1425,10 +1564,12 @@ func create_hill(pos:Vector3, scale_value:float):
 	mesh.radius=1.0
 	mesh.height=2.0
 	hill.mesh=mesh
-	hill.position=pos+Vector3(0,-2.0,0)
-	hill.scale=Vector3(scale_value,scale_value*0.42,scale_value*1.25)
-	hill.material_override=material(Color(0.12,0.42+randf_range(0,0.08),0.16))
+	hill.position=pos+Vector3(0,-2.7,0)
+	hill.scale=Vector3(scale_value,scale_value*0.33,scale_value*1.55)
+	hill.material_override=material(Color(randf_range(0.18,0.25),randf_range(0.30,0.39),randf_range(0.13,0.19)))
 	add_child(hill)
+
+
 
 func create_lamp(pos:Vector3):
 	var root=Node3D.new()
@@ -1657,24 +1798,22 @@ func create_motorway_sign(pos:Vector3,text_value:String):
 	var root=Node3D.new()
 	root.position=pos
 	add_child(root)
-	# Portal bleibt über der Fahrbahn, Schild selbst ist deutlich kleiner.
-	station_box(root,Vector3(0.16,7.6,0.16),Vector3(-7.4,3.8,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(0.16,7.6,0.16),Vector3(7.4,3.8,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(15.0,0.16,0.16),Vector3(0,7.55,0),Color(0.72,0.74,0.76))
-	station_box(root,Vector3(8.2,1.25,0.12),Vector3(0,7.15,-0.12),Color(0.02,0.28,0.55))
-	var label=Label3D.new()
-	label.text=text_value+"\n↓          ↓"
-	label.font_size=26
-	label.outline_size=5
-	label.position=Vector3(0,7.15,-0.20)
-	label.rotation_degrees.y=180
-	root.add_child(label)
-	var back_label=Label3D.new()
-	back_label.text=label.text
-	back_label.font_size=26
-	back_label.outline_size=5
-	back_label.position=Vector3(0,7.15,0.02)
-	root.add_child(back_label)
+	station_box(root,Vector3(0.18,7.7,0.18),Vector3(-7.4,3.85,0),Color(0.64,0.69,0.72))
+	station_box(root,Vector3(0.18,7.7,0.18),Vector3(7.4,3.85,0),Color(0.64,0.69,0.72))
+	station_box(root,Vector3(15.0,0.18,0.18),Vector3(0,7.55,0),Color(0.64,0.69,0.72))
+	station_box(root,Vector3(9.4,1.8,0.18),Vector3(0,7.0,0),Color(0.025,0.19,0.48))
+	for side in [-1.0,1.0]:
+		var label=Label3D.new()
+		label.text=text_value+"\n↓        ↓"
+		label.font_size=64
+		label.pixel_size=0.004
+		label.outline_size=12
+		label.modulate=Color.WHITE
+		label.position=Vector3(0,7.0,side*0.115)
+		if side>0.0:
+			label.rotation_degrees.y=180.0
+		root.add_child(label)
+
 
 
 func create_service_station_at(pos,station_name,fuel_price):
@@ -1791,13 +1930,16 @@ func update_service():
 			break
 
 	if near_service:
-		service_label.text=current_service_name+"  •  "+str(current_fuel_price)+" €/L"
-		refuel_button.visible=true
-		repair_button.visible=true
+		var service_text=current_service_name+"  •  "+str(current_fuel_price)+" €/L"
+		if service_label.text!=service_text:
+			service_label.text=service_text
 	else:
-		service_label.text=""
-		refuel_button.visible=false
-		repair_button.visible=false
+		if service_label.text!="":
+			service_label.text=""
+	if refuel_button.visible!=near_service:
+		refuel_button.visible=near_service
+	if repair_button.visible!=near_service:
+		repair_button.visible=near_service
 
 
 func refuel_car():
@@ -1841,44 +1983,129 @@ func repair_car():
 	service_label.text="Fahrzeug repariert: -"+str(cost)+" €"
 
 
-func tree(pos):
-	# 27.0: abwechslungsreiche Baumformen statt identischer Kugelkronen.
-	var root=Node3D.new()
-	root.position=pos
-	add_child(root)
-	var h=randf_range(3.7,5.4)
-	var trunk=MeshInstance3D.new()
-	var tm=CylinderMesh.new()
-	tm.top_radius=0.16
-	tm.bottom_radius=0.32
-	tm.height=h*0.52
-	trunk.mesh=tm
-	trunk.position.y=tm.height*0.5
-	trunk.material_override=material(Color(0.28,0.18,0.105))
-	root.add_child(trunk)
-	var pine=randf() < 0.55
-	if pine:
-		for i in range(3):
-			var foliage=MeshInstance3D.new()
-			var cone=CylinderMesh.new()
-			cone.top_radius=0.06
-			cone.bottom_radius=1.40-float(i)*0.26
-			cone.height=2.35
-			foliage.mesh=cone
-			foliage.position.y=h*0.48+float(i)*0.70
-			foliage.material_override=material(Color(0.065+float(i)*0.012,0.24+float(i)*0.025,0.105))
-			root.add_child(foliage)
+# AUTO BOSS 36.0 – WORLD VISUAL REVOLUTION
+# One MultiMesh per tree species / part. All trees share meshes and materials.
+func forest_batch_360(species:int,part:int)->MultiMesh:
+	var key=str(species)+"_"+str(part)
+	if forest_batches_360.has(key):
+		return forest_batches_360[key]
+	var mesh:PrimitiveMesh
+	if part==0:
+		var trunk=CylinderMesh.new()
+		trunk.top_radius=0.16
+		trunk.bottom_radius=0.27
+		trunk.height=1.0
+		trunk.radial_segments=7
+		mesh=trunk
+	elif species==0:
+		var needles=CylinderMesh.new()
+		needles.top_radius=0.04
+		needles.bottom_radius=0.95
+		needles.height=1.0
+		needles.radial_segments=9
+		mesh=needles
 	else:
-		for i in range(3):
-			var foliage=MeshInstance3D.new()
-			var crown=SphereMesh.new()
-			crown.radius=1.0
-			crown.height=2.0
-			foliage.mesh=crown
-			foliage.scale=Vector3(1.12,0.80,1.05)
-			foliage.position=Vector3(float(i-1)*0.55,h*0.67+float(i%2)*0.45,0)
-			foliage.material_override=material(Color(0.08,0.28+float(i)*0.045,0.085))
-			root.add_child(foliage)
+		var leaves=SphereMesh.new()
+		leaves.radius=1.0
+		leaves.height=2.0
+		leaves.radial_segments=10
+		leaves.rings=5
+		mesh=leaves
+	var batch=MultiMesh.new()
+	batch.transform_format=MultiMesh.TRANSFORM_3D
+	batch.mesh=mesh
+	batch.instance_count=1000
+	batch.visible_instance_count=0
+	var display=MultiMeshInstance3D.new()
+	display.multimesh=batch
+	if part==0:
+		display.material_override=material(Color(0.25,0.18,0.12))
+	elif species==0:
+		display.material_override=material(Color(0.09,0.29,0.13))
+	else:
+		display.material_override=material(Color(0.16,0.35,0.13))
+	add_child(display)
+	forest_batches_360[key]=batch
+	forest_counts_360[key]=0
+	return batch
+
+func forest_part_360(species:int,part:int,origin:Vector3,scale_value:Vector3,angle:float)->void:
+	var batch=forest_batch_360(species,part)
+	var key=str(species)+"_"+str(part)
+	var index=int(forest_counts_360[key])
+	if index>=batch.instance_count:
+		return
+	var basis=Basis(Vector3.UP,angle).scaled(scale_value)
+	batch.set_instance_transform(index,Transform3D(basis,origin))
+	forest_counts_360[key]=index+1
+	batch.visible_instance_count=index+1
+
+func tree(pos):
+	# Species mix, varied silhouettes, small randomized crown offsets.
+	# GPU instancing keeps the scene graph lightweight on Android.
+	var species=0 if randf()<0.55 else 1
+	var height=randf_range(5.2,8.0)
+	var angle=randf_range(-PI,PI)
+	forest_part_360(species,0,pos+Vector3(0,height*0.29,0),Vector3(1.0,height*0.58,1.0),angle)
+	if species==0:
+		for layer in range(1,4):
+			var width=1.65-float(layer)*0.22
+			forest_part_360(species,layer,pos+Vector3(0,height*(0.38+float(layer)*0.17),0),Vector3(width,height*0.30,width),angle)
+	else:
+		for layer in range(1,4):
+			var offset=Vector3(cos(angle+float(layer)*2.1)*0.65,0,sin(angle+float(layer)*2.1)*0.65)
+			forest_part_360(species,layer,pos+Vector3(0,height*0.76,0)+offset,Vector3(1.38,height*0.21,1.25),angle)
+
+
+# AUTO BOSS 40.0 - Mobile GPU batching for immovable road scenery.
+# Collect visible static cubes before any cars or UI are created.
+# We keep ShaderMaterial ground/asphalt meshes and non-BoxMesh geometry intact.
+func collect_static_boxes_400(root:Node, out:Array)->void:
+	for child in root.get_children():
+		if child is MeshInstance3D and child.mesh is BoxMesh and child.material_override is StandardMaterial3D and child.get_child_count()==0:
+			out.append(child)
+		else:
+			collect_static_boxes_400(child,out)
+
+
+func batch_static_world_400()->void:
+	var source_boxes=[]
+	collect_static_boxes_400(self,source_boxes)
+	var buckets={}
+	for instance in source_boxes:
+		var mat=instance.material_override
+		var box_mesh=instance.mesh as BoxMesh
+		# Chunk the instances: a single 3 km MultiMesh harms frustum culling.
+		var segment=int(floor(instance.global_position.z/240.0))
+		var key=str(mat.get_instance_id())+"_"+str(segment)
+		if not buckets.has(key):
+			buckets[key]={"mat":mat,"transforms":[],"nodes":[]}
+		var transform=Transform3D(instance.global_transform.basis.scaled(box_mesh.size),instance.global_position)
+		buckets[key]["transforms"].append(transform)
+		buckets[key]["nodes"].append(instance)
+
+	var unit_box=BoxMesh.new()
+	unit_box.size=Vector3.ONE
+	for entry in buckets.values():
+		var transforms:Array=entry["transforms"]
+		if transforms.size()<2:
+			continue
+		var multi=MultiMesh.new()
+		multi.transform_format=MultiMesh.TRANSFORM_3D
+		multi.mesh=unit_box
+		multi.instance_count=transforms.size()
+		for i in range(transforms.size()):
+			multi.set_instance_transform(i,transforms[i])
+		var draw=MultiMeshInstance3D.new()
+		draw.name="RoadBatch40"
+		draw.multimesh=multi
+		draw.material_override=entry["mat"]
+		add_child(draw)
+		batched_draw_groups_400+=1
+		batched_box_count_400+=transforms.size()
+		for instance in entry["nodes"]:
+			instance.queue_free()
+	print("AUTO BOSS 40.0: ",batched_box_count_400," world boxes -> ",batched_draw_groups_400," MultiMesh draw groups")
 
 
 func create_player():
@@ -1911,8 +2138,35 @@ func rebuild_player():
 
 func create_vehicle_model(parent,color_value):
 	# 15.0: komplett neu gezeichnetes, niedrigeres Fahrzeug mit klarer Silhouette.
-	create_vehicle_model_180(parent,color_value)
+	create_vehicle_model_290(parent,color_value)
+	add_vehicle_details_280(parent,color_value)
+	add_vehicle_styling_340(parent,color_value)
 	return
+
+
+# 34.0: Distinctive lightweight exterior details, shared by player and traffic.
+# Kept separate from driving physics and collision shapes.
+func add_vehicle_styling_340(parent:Node3D, paint:Color)->void:
+	var dark=Color(0.025,0.031,0.039)
+	var chrome=Color(0.50,0.57,0.62)
+	# Full-width rear LED strip and sculpted trunk lip.
+	station_box(parent,Vector3(1.45,0.045,0.035),Vector3(0,0.91,2.145),Color(0.84,0.025,0.018))
+	station_box(parent,Vector3(1.40,0.045,0.11),Vector3(0,1.075,2.045),paint.darkened(0.15))
+	# A proper front grille with separated dark intakes and thin chrome accents.
+	station_box(parent,Vector3(1.10,0.23,0.05),Vector3(0,0.71,-2.15),dark)
+	for stripe in range(3):
+		station_box(parent,Vector3(1.03,0.014,0.058),Vector3(0,0.63+stripe*0.07,-2.185),chrome.darkened(0.30))
+	# Long bonnet crease lines, sill trim and wheel arch hints.
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.022,0.018,0.79),Vector3(side*0.67,1.095,-1.43),paint.lightened(0.18))
+		station_box(parent,Vector3(0.035,0.052,2.28),Vector3(side*0.965,0.48,0),dark)
+		station_box(parent,Vector3(0.025,0.022,1.85),Vector3(side*0.89,1.16,0.09),chrome.darkened(0.28))
+		# LED daytime running light strip on each front corner.
+		station_box(parent,Vector3(0.37,0.045,0.05),Vector3(side*0.73,0.93,-2.11),Color(0.75,0.90,1.0))
+		# Door handle pairs with a dark recess below the metallic handle.
+		for door_z in [-0.53,0.70]:
+			station_box(parent,Vector3(0.026,0.055,0.25),Vector3(side*1.019,1.05,door_z),dark)
+			station_box(parent,Vector3(0.029,0.023,0.20),Vector3(side*1.038,1.073,door_z),chrome)
 
 func create_vehicle_model_legacy(parent,color_value):
 	var body=MeshInstance3D.new()
@@ -2205,7 +2459,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 27.0\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 40.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2285,9 +2539,15 @@ func box(size_value,pos,color_value):
 	add_child(obj)
 
 
+var material_cache_350={}
 func material(color_value):
+	# 35.0: Identische Farben teilen sich ein Material / weniger Ressourcen.
+	var key=color_value.to_html(true)
+	if material_cache_350.has(key):
+		return material_cache_350[key]
 	var m=StandardMaterial3D.new()
 	m.albedo_color=color_value
+	material_cache_350[key]=m
 	return m
 
 
@@ -2399,9 +2659,8 @@ func create_road_graphics_150():
 	# 15.0: Asphalt-Schultern, Mittellinien, Rumble-Strips und Reflektoren.
 	station_box(self,Vector3(1.15,0.035,2990),Vector3(-8.62,0.125,-1495),Color(0.15,0.16,0.17))
 	station_box(self,Vector3(1.15,0.035,2990),Vector3(8.62,0.125,-1495),Color(0.15,0.16,0.17))
-	for z in range(-20,-2980,-18):
-		station_box(self,Vector3(0.13,0.045,5.6),Vector3(-3.0,0.19,z),Color(0.94,0.94,0.91))
-		station_box(self,Vector3(0.13,0.045,5.6),Vector3(3.0,0.19,z-9),Color(0.94,0.94,0.91))
+	# 36.0: Avoid second layer of hundreds of overlapping lane dash meshes.
+	# create_road() already draws the dashed center lines with MultiMesh.
 	for z in range(-35,-2980,-34):
 		station_box(self,Vector3(0.26,0.10,0.55),Vector3(-7.72,0.23,z),Color(1.0,0.82,0.34))
 		station_box(self,Vector3(0.26,0.10,0.55),Vector3(7.72,0.23,z-17),Color(1.0,0.82,0.34))
@@ -2427,6 +2686,23 @@ func create_visual_revolution_160():
 		station_box(self,Vector3(0.16,6.2,0.16),Vector3(9.0,3.2,z),Color(0.36,0.39,0.43))
 		station_box(self,Vector3(18.1,0.16,0.16),Vector3(0,6.2,z),Color(0.42,0.45,0.49))
 		station_box(self,Vector3(5.2,1.05,0.18),Vector3(0,5.55,z-0.12),Color(0.02,0.23,0.52))
+		# 30.0: Die bisherigen blauen Portale hatten ueberhaupt keine Schrift.
+		var destination="A8  STUTTGART"
+		if z < -1250:
+			destination="A8  KARLSRUHE"
+		if z < -2100:
+			destination="A5  FRANKFURT"
+		for facing in [0.0,180.0]:
+			var label=Label3D.new()
+			label.text=destination
+			label.font_size=64
+			label.pixel_size=0.0045
+			label.outline_size=9
+			label.modulate=Color.WHITE
+			label.rotation_degrees.y=facing
+			label.position=Vector3(0,5.55,z-0.24 if facing == 180.0 else z-0.01)
+			label.no_depth_test=true
+			add_child(label)
 	# Dunklere Asphalt-Inlays erzeugen Geschwindigkeit und brechen die flache Fläche.
 	for z in range(-120,-2880,-260):
 		station_box(self,Vector3(13.8,0.012,18.0),Vector3(0,0.145,z),Color(0.105,0.11,0.12))
@@ -2580,8 +2856,8 @@ func create_sign_gantry_180(z_pos:float,left_text:String,right_text:String):
 	station_box(root,Vector3(17.6,0.22,0.22),Vector3(0,5.95,0),Color(0.52,0.55,0.57))
 	for data in [[-4.15,left_text],[4.15,right_text]]:
 		station_box(root,Vector3(7.5,1.75,0.16),Vector3(float(data[0]),5.0,-0.15),Color(0.015,0.22,0.48))
-		var lab=Label3D.new(); lab.text=str(data[1]); lab.font_size=28; lab.outline_size=5; lab.position=Vector3(float(data[0]),5.0,-0.27); lab.rotation_degrees.y=180; root.add_child(lab)
-		var reverse_lab=Label3D.new(); reverse_lab.text=str(data[1]); reverse_lab.font_size=28; reverse_lab.outline_size=5; reverse_lab.position=Vector3(float(data[0]),5.0,0.03); root.add_child(reverse_lab)
+		var lab=Label3D.new(); lab.text=str(data[1]); lab.font_size=42; lab.pixel_size=0.006; lab.outline_size=9; lab.position=Vector3(float(data[0]),5.0,-0.27); lab.rotation_degrees.y=180; root.add_child(lab)
+		var reverse_lab=Label3D.new(); reverse_lab.text=str(data[1]); reverse_lab.font_size=42; reverse_lab.pixel_size=0.006; reverse_lab.outline_size=9; reverse_lab.position=Vector3(float(data[0]),5.0,0.03); root.add_child(reverse_lab)
 
 func create_field_180(pos:Vector3,color_value:Color):
 	var root=Node3D.new(); root.position=pos; add_child(root)
@@ -2649,6 +2925,199 @@ func create_vehicle_model_180(parent,color_value):
 			var rim=MeshInstance3D.new(); var rm=CylinderMesh.new(); rm.top_radius=0.245; rm.bottom_radius=0.245; rm.height=0.325; rim.mesh=rm; rim.position=Vector3(wx,0.45,wz); rim.rotation_degrees=Vector3(0,0,90); rim.material_override=material(Color(0.48,0.51,0.55)); parent.add_child(rim)
 			var hub=MeshInstance3D.new(); var hm=CylinderMesh.new(); hm.top_radius=0.075; hm.bottom_radius=0.075; hm.height=0.335; hub.mesh=hm; hub.position=Vector3(wx,0.45,wz); hub.rotation_degrees=Vector3(0,0,90); hub.material_override=material(Color(0.10,0.11,0.12)); parent.add_child(hub)
 
+
+
+# AUTO BOSS 34.0 – geformte Fahrzeugkarosserie statt gestapelter Quader.
+# Die Form wird aus Querschnitten aufgebaut und ist bewusst leichtgewichtig fuer Android.
+# 31.0: Rundere, leichtgewichtige Karosserie mit berechneten Flaechennormalen.
+func vehicle_shell_290(parent:Node3D, sections:Array, paint:Color)->void:
+	var vertices=PackedVector3Array()
+	var indices=PackedInt32Array()
+	var ring_count=16
+	for section in sections:
+		var z=float(section[0])
+		var half_width=float(section[1])
+		var bottom=float(section[2])
+		var shoulder=float(section[3])
+		var top=float(section[4])
+		# 16 Eckpunkte ergeben weichere Kotfluegel und gerundete Dachkanten.
+		var profile=[
+			Vector2(-0.73,bottom),Vector2(-0.90,bottom+0.025),
+			Vector2(-0.985,bottom+0.11),Vector2(-1.0,shoulder*0.88),
+			Vector2(-0.97,shoulder),Vector2(-0.90,shoulder+(top-shoulder)*0.45),
+			Vector2(-0.78,top-0.035),Vector2(-0.63,top),
+			Vector2(0.63,top),Vector2(0.78,top-0.035),
+			Vector2(0.90,shoulder+(top-shoulder)*0.45),Vector2(0.97,shoulder),
+			Vector2(1.0,shoulder*0.88),Vector2(0.985,bottom+0.11),
+			Vector2(0.90,bottom+0.025),Vector2(0.73,bottom)]
+		for point in profile:
+			vertices.append(Vector3(point.x*half_width,point.y,z))
+	for section_index in range(sections.size()-1):
+		for corner in range(ring_count):
+			var a=section_index*ring_count+corner
+			var b=section_index*ring_count+(corner+1)%ring_count
+			var c=(section_index+1)*ring_count+corner
+			var d=(section_index+1)*ring_count+(corner+1)%ring_count
+			indices.append_array(PackedInt32Array([a,c,b,b,c,d]))
+	for corner in range(1,ring_count-1):
+		indices.append_array(PackedInt32Array([0,corner+1,corner]))
+	var last=(sections.size()-1)*ring_count
+	for corner in range(1,ring_count-1):
+		indices.append_array(PackedInt32Array([last,last+corner,last+corner+1]))
+	var surface=SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for index in indices:
+		surface.add_vertex(vertices[index])
+	surface.generate_normals()
+	var mesh=surface.commit()
+	var instance=MeshInstance3D.new()
+	instance.mesh=mesh
+	var finish=StandardMaterial3D.new()
+	finish.albedo_color=paint
+	finish.metallic=0.36
+	finish.roughness=0.24
+	finish.cull_mode=BaseMaterial3D.CULL_DISABLED
+	instance.material_override=finish
+	parent.add_child(instance)
+
+# Leichtgewichtige, schraeg geschnittene Seitenscheiben (ohne externe Assets).
+func vehicle_side_glass_310(parent:Node3D, side:float, z_front:float, z_back:float, y_bottom:float, y_top:float, top_inset:float)->void:
+	var x=side*0.805
+	var glass_mesh=ArrayMesh.new()
+	var verts=PackedVector3Array([
+		Vector3(x,y_bottom,z_front),
+		Vector3(x,y_bottom,z_back),
+		Vector3(x-side*top_inset,y_top,z_back-0.13),
+		Vector3(x-side*top_inset,y_top,z_front+0.18)
+	])
+	var idx=PackedInt32Array([0,1,2,0,2,3])
+	var arrays=[]
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX]=verts
+	arrays[Mesh.ARRAY_INDEX]=idx
+	glass_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+	var glass=MeshInstance3D.new()
+	glass.mesh=glass_mesh
+	var mat=StandardMaterial3D.new()
+	mat.albedo_color=Color(0.035,0.095,0.145)
+	mat.metallic=0.26
+	mat.roughness=0.15
+	mat.cull_mode=BaseMaterial3D.CULL_DISABLED
+	glass.material_override=mat
+	parent.add_child(glass)
+
+func create_vehicle_model_290(parent:Node3D,paint:Color)->void:
+	# Tief gezogene Front, breite Schultern und sanft verjuengtes Heck.
+	vehicle_shell_290(parent,[
+		[-2.10,0.76,0.47,0.67,0.73],
+		[-1.92,0.94,0.43,0.86,0.97],
+		[-1.16,1.00,0.41,1.00,1.15],
+		[0.80,1.01,0.41,1.03,1.13],
+		[1.68,0.97,0.43,0.97,1.06],
+		[2.10,0.80,0.47,0.72,0.78]
+	],paint)
+	# Die Dachkontur verengt sich nach oben, die Windschutzscheibe ist geneigt.
+	vehicle_shell_290(parent,[
+		[-0.97,0.80,1.08,1.12,1.16],
+		[-0.43,0.78,1.13,1.52,1.67],
+		[0.60,0.77,1.12,1.57,1.68],
+		[1.17,0.77,1.05,1.10,1.13]
+	],paint.darkened(0.09))
+	# Windschutzscheibe und Heckscheibe als geneigte Flaechen.
+	rotated_box(parent,Vector3(1.45,0.66,0.045),Vector3(0,1.39,-0.69),Color(0.055,0.12,0.18),-35.0)
+	rotated_box(parent,Vector3(1.42,0.53,0.045),Vector3(0,1.36,0.93),Color(0.05,0.10,0.15),33.0)
+	# Raeder, dunkle Reifen, Metallfelgen und Naben.
+	for x in [-1.0,1.0]:
+		for z in [-1.28,1.28]:
+			for wheel_data in [[0.40,0.31,Color(0.016,0.018,0.022)],[0.245,0.325,Color(0.49,0.53,0.57)],[0.075,0.34,Color(0.09,0.10,0.11)]]:
+				var wheel=MeshInstance3D.new()
+				var cylinder=CylinderMesh.new()
+				cylinder.top_radius=wheel_data[0]
+				cylinder.bottom_radius=wheel_data[0]
+				cylinder.height=wheel_data[1]
+				wheel.mesh=cylinder
+				wheel.position=Vector3(x,0.45,z)
+				wheel.rotation_degrees.z=90.0
+				wheel.material_override=material(wheel_data[2])
+				parent.add_child(wheel)
+	# 33.0: wheel spokes visible on both outside faces, with compact meshes.
+	for side in [-1.0,1.0]:
+		for axle_z in [-1.28,1.28]:
+			for spoke in range(5):
+				var angle=float(spoke)*TAU/5.0
+				var rim_bar=MeshInstance3D.new()
+				var rim_mesh=BoxMesh.new()
+				rim_mesh.size=Vector3(0.025,0.27,0.052)
+				rim_bar.mesh=rim_mesh
+				rim_bar.position=Vector3(side*1.177,0.45,axle_z)
+				rim_bar.rotation_degrees.x=rad_to_deg(angle)
+				rim_bar.material_override=material(Color(0.68,0.71,0.75))
+				parent.add_child(rim_bar)
+	# Stossfaenger, Kennzeichen, Leuchten und Grill.
+	station_box(parent,Vector3(1.28,0.17,0.055),Vector3(0,0.65,-2.115),Color(0.028,0.035,0.044))
+	station_box(parent,Vector3(0.47,0.13,0.04),Vector3(0,0.52,-2.15),Color(0.86,0.88,0.86))
+	station_box(parent,Vector3(0.47,0.13,0.04),Vector3(0,0.52,2.15),Color(0.86,0.88,0.86))
+	for x in [-0.72,0.72]:
+		light_box(parent,Vector3(x,0.84,-2.10),Color(0.83,0.93,1.0))
+		light_box(parent,Vector3(x,0.83,2.10),Color(0.97,0.045,0.03))
+	# 31.0: Zusaetzliche geneigte Glasflaechen fuer klarere Fenster-Silhouette.
+	for side in [-1.0,1.0]:
+		vehicle_side_glass_310(parent,side,-0.91,0.02,1.24,1.60,0.07)
+		vehicle_side_glass_310(parent,side,0.09,0.91,1.24,1.60,0.07)
+	# 30.0: Glasseiten, dunkle Fensterrahmen und echte Seiten-Silhouette.
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.035,0.35,0.77),Vector3(side*0.79,1.41,-0.38),Color(0.035,0.105,0.16))
+		station_box(parent,Vector3(0.035,0.34,0.62),Vector3(side*0.79,1.41,0.43),Color(0.035,0.105,0.16))
+		station_box(parent,Vector3(0.06,0.42,0.055),Vector3(side*0.81,1.42,0.04),Color(0.025,0.03,0.04))
+		station_box(parent,Vector3(0.045,0.055,1.48),Vector3(side*0.81,1.64,0.04),paint.darkened(0.32))
+		station_box(parent,Vector3(0.16,0.12,0.26),Vector3(side*1.04,1.27,-0.67),paint.darkened(0.14))
+		station_box(parent,Vector3(0.045,0.055,0.23),Vector3(side*1.13,1.27,-0.67),Color(0.63,0.72,0.77))
+		station_box(parent,Vector3(0.05,0.04,0.30),Vector3(side*1.00,1.05,0.40),Color(0.62,0.65,0.68))
+	# Breiteres LED-Ruecklichtband und vordere Lufteinlaesse.
+	station_box(parent,Vector3(1.40,0.065,0.04),Vector3(0,0.90,2.135),Color(0.95,0.065,0.035))
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.34,0.14,0.05),Vector3(side*0.69,0.60,-2.15),Color(0.015,0.025,0.035))
+
+# AUTO BOSS 34.0 – VEHICLE REVOLUTION
+# Zusatzdetails auf dem bestehenden Modell, damit Physik und Kameras unveraendert bleiben.
+func add_vehicle_details_280(parent:Node3D,paint:Color)->void:
+	var glass=Color(0.065,0.14,0.20)
+	var chrome=Color(0.64,0.70,0.73)
+	var dark=Color(0.028,0.034,0.044)
+	# Seitenfenster mit sichtbarer B-Saeule und umlaufenden Fensterleisten.
+	for side in [-1.0,1.0]:
+		var x=side*0.857
+		station_box(parent,Vector3(0.045,0.39,0.67),Vector3(x,1.42,-0.33),glass)
+		station_box(parent,Vector3(0.045,0.37,0.61),Vector3(x,1.42,0.44),glass)
+		station_box(parent,Vector3(0.052,0.48,0.075),Vector3(x+side*0.016,1.42,0.08),dark)
+		station_box(parent,Vector3(0.06,0.045,1.52),Vector3(x+side*0.015,1.63,0.10),chrome)
+		station_box(parent,Vector3(0.07,0.055,2.25),Vector3(side*0.956,0.98,0.10),paint.darkened(0.26))
+		# Aussenspiegel, Spiegelglas und Blinker.
+		station_box(parent,Vector3(0.22,0.14,0.31),Vector3(side*1.10,1.31,-0.68),paint.darkened(0.12))
+		station_box(parent,Vector3(0.035,0.085,0.21),Vector3(side*1.22,1.31,-0.68),chrome)
+		station_box(parent,Vector3(0.12,0.028,0.24),Vector3(side*1.11,1.36,-0.68),Color(0.95,0.70,0.28))
+		# Felgen mit acht sichtbaren Speichen auf beiden Radseiten.
+		for z in [-1.28,1.28]:
+			for spoke in range(8):
+				var angle=float(spoke)*PI/4.0
+				var rim_piece=MeshInstance3D.new()
+				var piece_mesh=BoxMesh.new()
+				piece_mesh.size=Vector3(0.022,0.035,0.19)
+				rim_piece.mesh=piece_mesh
+				rim_piece.position=Vector3(side*1.175,0.45+sin(angle)*0.13,z+cos(angle)*0.13)
+				rim_piece.rotation.x=-angle
+				rim_piece.material_override=material(chrome)
+				parent.add_child(rim_piece)
+	# LED-Tagfahrlicht und Lichtsignatur, sichtbare Kennzeichenhalter.
+	for x in [-0.73,0.73]:
+		station_box(parent,Vector3(0.42,0.055,0.048),Vector3(x,0.91,-2.15),Color(0.79,0.91,1.0))
+		station_box(parent,Vector3(0.39,0.075,0.05),Vector3(x,0.86,2.15),Color(0.95,0.055,0.025))
+	station_box(parent,Vector3(0.72,0.028,0.045),Vector3(0,0.58,-2.16),chrome)
+	station_box(parent,Vector3(0.72,0.028,0.045),Vector3(0,0.59,2.16),chrome)
+	# Dezente Sicken auf Motorhaube und Heck.
+	for side in [-1.0,1.0]:
+		station_box(parent,Vector3(0.025,0.018,0.97),Vector3(side*0.62,1.21,-1.47),paint.lightened(0.13))
+		station_box(parent,Vector3(0.025,0.018,0.60),Vector3(side*0.68,1.15,1.55),paint.darkened(0.18))
 
 # AUTO BOSS 19.0 – AUTOBAHN EVOLUTION
 # Erweiterung auf Basis von 18.0: echte Ausfahrt-Silhouetten, Rastplatz-Zufahrten,
@@ -2739,8 +3208,9 @@ func create_highway_revolution_200():
 func create_portal_text_200(z_pos:float,text_value:String):
 	var lab=Label3D.new()
 	lab.text=text_value+"\n↓                 ↓"
-	lab.font_size=22
-	lab.outline_size=5
+	lab.font_size=48
+	lab.pixel_size=0.007
+	lab.outline_size=10
 	lab.modulate=Color(0.97,0.98,1.0)
 	lab.position=Vector3(0,5.56,z_pos-0.14)
 	lab.rotation_degrees.y=180
