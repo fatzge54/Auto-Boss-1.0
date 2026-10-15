@@ -83,6 +83,9 @@ jobs:
             exit 1
           fi
 
+      - name: Grafik-Assets importieren
+        run: godot --headless --editor --path . --import --quit
+
       - name: AUTO BOSS APK bauen
         run: |
           mkdir -p build
@@ -91,6 +94,6 @@ jobs:
       - name: APK speichern
         uses: actions/upload-artifact@v4
         with:
-          name: AUTO-BOSS-42.0-APK
+          name: AUTO-BOSS-50.0-APK
           path: build/AUTO_BOSS.apk
           if-no-files-found: error
