@@ -1,3 +1,9 @@
+# AUTO BOSS 50.0 – Graphics Reborn
+
+Aktuelle Version: **50.0**. Änderungen, Build-Hinweise und Tests: [README_50.0_GRAPHICS_REBORN.md](README_50.0_GRAPHICS_REBORN.md).
+
+---
+
 # AUTO BOSS 5.0
 
 Karriere- und Wirtschaftsupdate auf Basis des getesteten 4.0/3.0-Projekts.
