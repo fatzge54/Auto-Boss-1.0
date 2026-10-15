@@ -19,6 +19,7 @@ var contracts:Array[Dictionary]=[]
 func _init()->void:
 	create_contracts()
 	generate_extra_contracts()
+	set_contract_conditions()
 	load_game()
 
 func create_contracts()->void:
@@ -66,6 +67,19 @@ func generate_extra_contracts()->void:
 			"required_rep":rep,"reward":reward,"title":variants[i%variants.size()],
 			"pickup_x":origin.x+400.0,"pickup_z":origin.y,"drop_x":target.x-400.0,"drop_z":target.y})
 
+func set_contract_conditions()->void:
+	# Conditions are deterministic and therefore survive saved active-job dictionaries.
+	for i in range(contracts.size()):
+		var contract:Dictionary=contracts[i]
+		var urgency:bool= str(contract["title"]).contains("Express") or str(contract["title"]).contains("Eilige")
+		var pickup:=Vector2(float(contract["pickup_x"]),float(contract["pickup_z"]))
+		var drop:=Vector2(float(contract["drop_x"]),float(contract["drop_z"]))
+		var direct_km:float=(absf(pickup.x-drop.x)+absf(pickup.y-drop.y))*0.001
+		contract["urgent"]=urgency
+		contract["deadline_minutes"]=roundi(maxf(9.0,direct_km/0.82+8.0)) if urgency else 0
+		contract["damage_tolerance"]=2.0 if str(contract["title"]).contains("Premium") else 10.0
+		contracts[i]=contract
+
 func accept(index:int)->bool:
 	if index<0 or index>=contracts.size() or active_stage!="":return false
 	var job:Dictionary=contracts[index]
@@ -100,14 +114,21 @@ func finish(damage:float,fuel:float)->String:
 	var loss:int=roundi(float(base)*0.45*damage/100.0)
 	var clean_bonus:int=roundi(float(base)*0.15) if damage<0.5 else 0
 	var fuel_bonus:int=roundi(float(base)*0.05) if fuel>=20.0 else 0
-	var revenue:int=maxi(0,base-loss+clean_bonus+fuel_bonus)
+	var on_time_bonus:int=0
+	var deadline:int=int(active_job.get("deadline_minutes",0))
+	if deadline>0 and job_timer<=float(deadline)*60.0:
+		on_time_bonus=roundi(float(base)*0.18)
+	var premium_bonus:int=0
+	if damage<float(active_job.get("damage_tolerance",10.0)):
+		premium_bonus=roundi(float(base)*0.06)
+	var revenue:int=maxi(0,base-loss+clean_bonus+fuel_bonus+on_time_bonus+premium_bonus)
 	money+=revenue
 	total_earnings+=revenue
 	jobs_completed+=1
 	reputation+=3 if damage<5.0 else (1 if damage<25.0 else -2)
 	var key:String=str(active_job["car"])
 	completed_by_class[key]=int(completed_by_class.get(key,0))+1
-	last_result="AUFTRAG ERFÜLLT!\nGrundlohn: %d €\nSchäden: −%d €\nSorgfaltsbonus: +%d €\nKraftstoffbonus: +%d €\nAUSZAHLUNG: %d €" % [base,loss,clean_bonus,fuel_bonus,revenue]
+	last_result="AUFTRAG ERFÜLLT!\nGrundlohn: %d €\nSchäden: −%d €\nSorgfalt: +%d €\nKraftstoff: +%d €\nPünktlichkeit: +%d €\nVertragsqualität: +%d €\nAUSZAHLUNG: %d €" % [base,loss,clean_bonus,fuel_bonus,on_time_bonus,premium_bonus,revenue]
 	active_job={};active_stage="";job_timer=0.0
 	save_game()
 	return last_result
@@ -150,6 +171,7 @@ func save_game()->void:
 	cfg.set_value("career","completed_by_class",completed_by_class)
 	cfg.set_value("job","active",active_job)
 	cfg.set_value("job","stage",active_stage)
+	cfg.set_value("job","time",job_timer)
 	cfg.save(SAVE_PATH)
 
 func load_game()->void:
@@ -166,4 +188,5 @@ func load_game()->void:
 	completed_by_class=cfg.get_value("career","completed_by_class",{})
 	active_job=cfg.get_value("job","active",{})
 	active_stage=str(cfg.get_value("job","stage",""))
+	job_timer=float(cfg.get_value("job","time",0.0))
 	if active_job.is_empty():active_stage=""

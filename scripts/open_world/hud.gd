@@ -1,5 +1,6 @@
 extends CanvasLayer
 const MiniMap=preload("res://scripts/open_world/minimap.gd")
+const WorldMap=preload("res://scripts/open_world/world_map.gd")
 const WorldData=preload("res://scripts/open_world/world_data.gd")
 const VehicleData=preload("res://scripts/open_world/vehicle.gd")
 var game
@@ -43,12 +44,25 @@ func create_driving_ui()->void:
 	driving_hud=Control.new();driving_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	driving_hud.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	screen.add_child(driving_hud)
+	# Semi-opaque dashboard is readable against bright fog, snow and daylight.
+	var stats_back:=ColorRect.new()
+	stats_back.position=Vector2(13,10)
+	stats_back.size=Vector2(385,142)
+	stats_back.color=Color(0.012,0.034,0.053,0.81)
+	stats_back.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	driving_hud.add_child(stats_back)
+	var nav_back:=ColorRect.new()
+	nav_back.position=Vector2(412,10)
+	nav_back.size=Vector2(627,133)
+	nav_back.color=Color(0.012,0.034,0.053,0.81)
+	nav_back.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	driving_hud.add_child(nav_back)
 	stats=label("0 km/h",25);stats.position=Vector2(24,20)
 	stats.size=Vector2(455,135);driving_hud.add_child(stats)
 	region_label=label("Lindenfurt",17);region_label.position=Vector2(430,18)
 	region_label.size=Vector2(520,50);driving_hud.add_child(region_label)
 	target_label=label("Freie Fahrt",18);target_label.position=Vector2(450,50)
-	target_label.size=Vector2(570,70);driving_hud.add_child(target_label)
+	target_label.size=Vector2(570,105);driving_hud.add_child(target_label)
 	map_view=MiniMap.new();map_view.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	map_view.position=Vector2(-240,22);map_view.size=Vector2(220,220)
 	map_view.scale_factor=0.12;driving_hud.add_child(map_view)
@@ -100,7 +114,7 @@ func _process(delta:float)->void:
 		message_timer-=delta
 		if message_timer<=0.0:feedback_label.text=""
 	if driving_hud.visible:
-		stats.text="%d km/h\n⛽ %d%%    SCHADEN %d%%\n💶 %d €    RUF %d" % [game.vehicle.kmh(),int(game.vehicle.fuel),int(game.vehicle.damage),game.career.money,game.career.reputation]
+		stats.text="%d km/h\nTANK %d%%  •  SCHADEN %d%%\nKONTO %d €  •  RUF %d" % [game.vehicle.kmh(),int(game.vehicle.fuel),int(game.vehicle.damage),game.career.money,game.career.reputation]
 		region_label.text="⌖ "+game.current_region+"     ☁ "+game.weather+"     "+game.clock_text()
 		target_label.text=game.navigation_text()
 		map_view.car=game.vehicle
@@ -127,7 +141,7 @@ func show_menu(page:String)->void:
 	var column:=VBoxContainer.new();column.custom_minimum_size=Vector2(880,620)
 	column.add_theme_constant_override("separation",9)
 	scroll.add_child(column)
-	var title:=label("AUTO BOSS 62.0  •  GERMAN ROADS",36)
+	var title:=label("AUTO BOSS 70.0  •  GERMAN ROADS",36)
 	title.add_theme_color_override("font_color",Color(0.36,0.83,1.0))
 	column.add_child(title)
 	column.add_child(label("OPEN WORLD · LOGISTIK · TRANSPORTKARRIERE",18))
@@ -152,10 +166,12 @@ func show_menu(page:String)->void:
 			add_action(column,"⌂  HAUPTMENÜ",func():show_menu("start"))
 		"jobs":
 			column.add_child(label("Wähle einen Transportvertrag. Abholung und Übergabe erfolgen direkt in der offenen Welt.",16))
+			column.add_child(label("AKTIV FREIGESCHALTET: Ruf %d" % game.career.reputation,19))
 			for i in range(game.career.contracts.size()):
 				var r:Dictionary=game.career.contracts[i]
 				var locked:bool=game.career.reputation<int(r["required_rep"])
 				var desc:String="%s  |  %s → %s  |  %s  |  %d €  |  Ruf %d" % [str(r["title"]),str(r["from"]),str(r["to"]),VehicleData.CATALOG[int(r["car"])]["name"],int(r["reward"]),int(r["required_rep"])]
+				if int(r.get("deadline_minutes",0))>0:desc+="  |  EXPRESS %d min" % int(r["deadline_minutes"])
 				var idx:int=i
 				var b:=add_action(column,desc,func():game.accept_contract(idx))
 				b.disabled=locked or game.career.active_stage!=""
@@ -171,9 +187,13 @@ func show_menu(page:String)->void:
 			add_action(column,"Kundenfahrzeug / Firmenwagen warten  •  225 €",func():game.service_vehicle())
 			add_action(column,"← ZURÜCK",func():show_menu("start"))
 		"regions":
+			column.add_child(label("REGIONSKARTE  •  GESAMTES STRASSENNETZ",20))
+			var overview:=WorldMap.new()
+			overview.game=game
+			column.add_child(overview)
 			for c in WorldData.CITY_CENTERS:
 				column.add_child(label("●  %s     [%s]" % [str(c["name"]),str(c["kind"])],20))
-			column.add_child(label("25 × 25 km Koordinatenwelt, dynamisches Streaming, Straßenraster und fünf regionale Zentren.",16))
+			column.add_child(label("25 × 25 km Koordinatenwelt, dynamisches Streaming und fünf Regionen.",16))
 			column.add_child(label("Die Welt ist ein technischer Ausbau-Prototyp, keine fertig ausgestaltete Deutschlandkarte.",16))
 			add_action(column,"← ZURÜCK",func():show_menu("start"))
 		"settings":
@@ -183,7 +203,7 @@ func show_menu(page:String)->void:
 			add_action(column,"PERFORMANCE  •  9 Weltsektoren, 8 KI-Fahrzeuge",func():game.set_quality(0))
 			add_action(column,"AUSGEWOGEN  •  25 Weltsektoren, 12 KI-Fahrzeuge",func():game.set_quality(1))
 			add_action(column,"DETAILS  •  25 Weltsektoren, 16 KI-Fahrzeuge",func():game.set_quality(2))
-			column.add_child(label("Für flüssiges Spielen zunächst PERFORMANCE wählen. Ziel: stabile 30 FPS.",17))
+			column.add_child(label("Bei Leistungseinbrüchen PERFORMANCE wählen. Ziel: möglichst stabile 30 FPS.",17))
 			add_action(column,"← ZURÜCK",func():show_menu("start"))
 		"help":
 			column.add_child(label("HANDY: Links/rechts unten lenken · GAS/BREMSE rechts gedrückt halten.",20))

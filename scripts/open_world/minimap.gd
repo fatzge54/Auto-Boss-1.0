@@ -14,7 +14,7 @@ func project_position(world:Vector2,player:Vector2)->Vector2:
 	return Vector2(size.x*0.5+relative.x,size.y*0.5+relative.y)
 
 func _draw()->void:
-	draw_rect(Rect2(Vector2.ZERO,size),Color(0.025,0.09,0.115,0.90),true)
+	draw_rect(Rect2(Vector2.ZERO,size),Color(0.027,0.065,0.072,0.94),true)
 	if car==null:return
 	var p:=Vector2(car.position.x,car.position.z)
 	var spacing:float=Data.CHUNK_SIZE
@@ -24,17 +24,20 @@ func _draw()->void:
 		var x:float=xi*spacing
 		var x_screen:float=project_position(Vector2(x,p.y),p).x
 		if x_screen>=0.0 and x_screen<=size.x:
-			draw_line(Vector2(x_screen,0),Vector2(x_screen,size.y),Color(0.35,0.41,0.43),2.0)
+			draw_line(Vector2(x_screen,0),Vector2(x_screen,size.y),Color(0.38,0.43,0.40),4.0)
 	for zi in range(z0,z0+9):
 		var z:float=zi*spacing
 		var z_screen:float=project_position(Vector2(p.x,z),p).y
 		if z_screen>=0.0 and z_screen<=size.y:
-			draw_line(Vector2(0,z_screen),Vector2(size.x,z_screen),Color(0.35,0.41,0.43),2.0)
+			draw_line(Vector2(0,z_screen),Vector2(size.x,z_screen),Color(0.38,0.43,0.40),4.0)
 	for i in range(1,track.size()):
-		draw_line(project_position(track[i-1],p),project_position(track[i],p),Color(0.28,0.86,1.0,0.82),3.0,true)
+		draw_line(project_position(track[i-1],p),project_position(track[i],p),Color(0.18,0.88,1.0,0.97),4.0,true)
 	if has_target:
 		var dot:=project_position(target,p)
-		draw_circle(dot,7.0,Color(1.0,0.73,0.17))
+		# The destination is displayed at the edge even on very long contracts.
+		dot=dot.clamp(Vector2(9.0,9.0),size-Vector2(9.0,9.0))
+		draw_circle(dot,8.0,Color(1.0,0.73,0.17))
+		draw_arc(dot,11.0,0.0,TAU,18,Color(0.10,0.10,0.10,0.9),2.0)
 	var angle:float=car.rotation.y
 	var c:=Vector2(size.x*0.5,size.y*0.5)
 	var f:=Vector2(-sin(angle),-cos(angle))

@@ -5,6 +5,7 @@ const Vehicle=preload("res://scripts/open_world/vehicle.gd")
 const Career=preload("res://scripts/open_world/career.gd")
 const Traffic=preload("res://scripts/open_world/traffic.gd")
 const HUD=preload("res://scripts/open_world/hud.gd")
+const RainFX=preload("res://scripts/open_world/rain_fx.gd")
 const POSITION_FILE="user://autoboss_world_position.cfg"
 var world
 var vehicle
@@ -15,6 +16,11 @@ var cam:Camera3D
 var sun:DirectionalLight3D
 var world_environment:WorldEnvironment
 var destination_marker:Node3D
+var headlights:SpotLight3D
+var rain_fx:Node3D
+var sky_update_acc:float=0.0
+var weather_material_acc:float=0.0
+var save_acc:float=0.0
 var route:Array[Vector2]=[]
 var stage_target:Vector2=Vector2.ZERO
 var current_region:String="Lindenfurt"
@@ -26,7 +32,7 @@ var runtime:float=0.0
 var hud_update_acc:float=0.0
 var world_acc:float=0.0
 var camera_mode:int=0
-var quality:int=1
+var quality:int=0
 var touch:Dictionary={"gas":false,"brake":false,"left":false,"right":false}
 
 func _ready()->void:
@@ -35,14 +41,17 @@ func _ready()->void:
 	career=Career.new()
 	vehicle=Vehicle.new();vehicle.name="Spielerfahrzeug";add_child(vehicle)
 	vehicle.configure(1)
+	create_headlights()
 	load_position()
 	if career.active_stage=="delivery": vehicle.configure(int(career.active_job["car"]))
 	vehicle.position.y=Data.height_at(vehicle.position.x,vehicle.position.z)
 	world.stream_radius=1 if quality==0 else 2
+	world.detail_level=quality
 	world.force_spawn(vehicle.position)
 	traffic=Traffic.new();traffic.name="KI_Verkehr";add_child(traffic);traffic.player=vehicle
 	traffic.active_count=8 if quality==0 else (12 if quality==1 else 16)
-	cam=Camera3D.new();cam.fov=72.0;cam.far=1350.0;cam.current=true;add_child(cam)
+	rain_fx=RainFX.new();rain_fx.name="Regen_FX";add_child(rain_fx)
+	cam=Camera3D.new();cam.fov=69.0;cam.far=1650.0;cam.current=true;add_child(cam)
 	update_camera(1.0)
 	create_destination_marker()
 	refresh_destination()
@@ -53,10 +62,10 @@ func create_environment()->void:
 	var environment:=Environment.new()
 	var sky:=Sky.new()
 	var proc:=ProceduralSkyMaterial.new()
-	proc.sky_top_color=Color(0.21,0.46,0.72)
-	proc.sky_horizon_color=Color(0.72,0.78,0.81)
+	proc.sky_top_color=Color(0.13,0.34,0.59)
+	proc.sky_horizon_color=Color(0.68,0.76,0.80)
 	proc.ground_bottom_color=Color(0.17,0.20,0.17)
-	proc.ground_horizon_color=Color(0.66,0.66,0.60)
+	proc.ground_horizon_color=Color(0.42,0.50,0.41)
 	sky.sky_material=proc
 	environment.background_mode=Environment.BG_SKY
 	environment.sky=sky
@@ -64,14 +73,25 @@ func create_environment()->void:
 	environment.reflected_light_source=Environment.REFLECTION_SOURCE_BG
 	environment.tonemap_mode=Environment.TONE_MAPPER_FILMIC
 	environment.fog_enabled=true
-	environment.fog_light_color=Color(0.58,0.67,0.70)
-	environment.fog_density=0.0023
+	environment.fog_light_color=Color(0.53,0.62,0.65)
+	environment.fog_density=0.00034
 	world_environment=WorldEnvironment.new()
 	world_environment.environment=environment
 	add_child(world_environment)
 	sun=DirectionalLight3D.new();sun.rotation_degrees=Vector3(-48,-35,0)
-	sun.light_energy=1.3;sun.shadow_enabled=false
+	sun.light_energy=1.12;sun.shadow_enabled=false
 	add_child(sun)
+
+func create_headlights()->void:
+	headlights=SpotLight3D.new()
+	headlights.name="Adaptive_Abblendlicht"
+	headlights.light_color=Color(0.94,0.97,1.0)
+	headlights.light_energy=0.0
+	headlights.spot_range=45.0
+	headlights.spot_angle=40.0
+	headlights.shadow_enabled=false
+	headlights.position=Vector3(0,1.18,-2.15)
+	vehicle.add_child(headlights)
 
 func create_destination_marker()->void:
 	destination_marker=Node3D.new();add_child(destination_marker)
@@ -109,8 +129,12 @@ func _physics_process(delta:float)->void:
 		world.update_stream(vehicle.position)
 		current_region=Data.region_at(Vector2(vehicle.position.x,vehicle.position.z))
 		world_acc=0.0
-	if career.active_stage!="": career.job_timer+=delta
+	if career.active_stage!="" and career.active_stage=="delivery":career.job_timer+=delta
 	update_navigation(delta)
+	save_acc+=delta
+	if save_acc>=70.0:
+		save_acc=0.0
+		save_progress()
 
 func _process(delta:float)->void:
 	if state=="driving":
@@ -120,25 +144,41 @@ func _process(delta:float)->void:
 			weather_timer=0.0
 			var weathers:Array[String]=["Klar","Wolkig","Regen","Starkregen","Nebel"]
 			weather=weathers[randi()%weathers.size()]
-		update_atmosphere()
+		update_atmosphere(delta)
 		update_camera(delta)
+		if rain_fx!=null:rain_fx.tick(delta,vehicle.global_position,weather,quality)
 
-func update_atmosphere()->void:
+func update_atmosphere(delta:float)->void:
 	var daytime:float=clampf(sin((clock-5.5)/24.0*TAU),0.0,1.0)
 	sun.rotation_degrees.x=-8.0-daytime*62.0
-	sun.light_energy=0.18+daytime*1.17
-	var fog:float=0.0045 if weather=="Nebel" else (0.0036 if weather=="Starkregen" else 0.0023)
+	sun.light_energy=0.27+daytime*0.89
+	var fog:float=0.00185 if weather=="Nebel" else (0.00095 if weather=="Starkregen" else (0.00058 if weather=="Regen" else 0.00034))
 	world_environment.environment.fog_density=fog
+	if headlights!=null:
+		headlights.light_energy=3.1 if clock>=19.0 or clock<6.2 else (1.0 if weather=="Starkregen" else 0.0)
+	sun.light_color=Color(1.0,0.72,0.53).lerp(Color(1.0,0.98,0.91),daytime)
+	weather_material_acc+=delta
+	if weather_material_acc>=0.3:
+		weather_material_acc=0.0
+		world.update_visual_weather(daytime,weather=="Regen" or weather=="Starkregen",traffic.light_clock)
+	sky_update_acc+=delta
+	if sky_update_acc>=2.0:
+		sky_update_acc=0.0
+		var procedural:ProceduralSkyMaterial=world_environment.environment.sky.sky_material as ProceduralSkyMaterial
+		if procedural!=null:
+			procedural.sky_top_color=Color(0.018,0.035,0.095).lerp(Color(0.13,0.34,0.59),daytime)
+			procedural.sky_horizon_color=Color(0.07,0.11,0.17).lerp(Color(0.68,0.76,0.80),daytime)
+
 
 func update_camera(delta:float)->void:
 	var f:=Vector3(-sin(vehicle.yaw),0.0,-cos(vehicle.yaw))
 	var wanted:Vector3
 	if camera_mode==0:
-		wanted=vehicle.position-f*11.0+Vector3(0,5.5,0)
+		wanted=vehicle.position-f*8.4+Vector3(0,3.65,0)
 	else:
 		wanted=vehicle.position+f*1.0+Vector3(0,1.65,0)
 	cam.global_position=cam.global_position.lerp(wanted,clampf(delta*6.5,0.0,1.0))
-	cam.look_at(vehicle.position+f*23.0+Vector3(0,1.45,0),Vector3.UP)
+	cam.look_at(vehicle.position+f*19.0+Vector3(0,1.35,0),Vector3.UP)
 
 func toggle_camera()->void:
 	camera_mode=(camera_mode+1)%2
@@ -152,8 +192,8 @@ func clear_touch()->void:
 func set_quality(level:int)->void:
 	quality=clampi(level,0,2)
 	world.stream_radius=1 if quality==0 else 2
-	world.last_center=Vector2i(9999,9999)
-	world.update_stream(vehicle.position)
+	world.detail_level=quality
+	world.rebuild_for_quality(vehicle.position)
 	traffic.active_count=8 if quality==0 else (12 if quality==1 else 16)
 	save_progress()
 	hud.show_menu("settings")
@@ -224,12 +264,27 @@ func interact()->void:
 		hud.show_menu("result")
 		save_progress()
 
+func next_instruction()->String:
+	if route.size()<2:return "Dem Ziel folgen"
+	var p:=Vector2(vehicle.position.x,vehicle.position.z)
+	var next:Vector2=route[0]
+	var ahead:Vector2=route[1]
+	var dist:float=p.distance_to(next)
+	if dist>240.0:return "Geradeaus • Nächster Abzweig in %.0f m" % dist
+	var forward:Vector2=(next-p).normalized()
+	var outgoing:Vector2=(ahead-next).normalized()
+	var cross:float=forward.x*outgoing.y-forward.y*outgoing.x
+	if absf(cross)<0.38:return "Weiter geradeaus • %.0f m" % dist
+	return ("Links abbiegen" if cross<0.0 else "Rechts abbiegen")+" • %.0f m" % dist
+
 func navigation_text()->String:
 	if career.active_stage=="":return "Kein Auftrag aktiv – MENÜ → AUFTRAGSBÖRSE"
 	var meters:float=remaining_meters()
 	var minutes:int=ceili(meters/maxf(13.0,absf(vehicle.speed))*1.0/60.0)
 	var warning:String="  •  AM ZIEL ANHALTEN" if can_interact() else ""
-	return "%s\n%.1f km  •  ETA ca. %d min%s" % [career.destination_name(),meters*0.001,minutes,warning]
+	var deadline:int=int(career.active_job.get("deadline_minutes",0))
+	var time_left:String="  •  Express: %d min" % maxi(0,deadline-ceili(career.job_timer/60.0)) if deadline>0 and career.active_stage=="delivery" else ""
+	return "%s\n%.1f km  •  ETA %d min%s\n%s%s" % [career.destination_name(),meters*0.001,minutes,warning,next_instruction(),time_left]
 
 func clock_text()->String:
 	return "%02d:%02d" % [int(clock),int((clock-float(int(clock)))*60.0)]
@@ -267,7 +322,7 @@ func load_position()->void:
 	vehicle.yaw=float(cfg.get_value("world","yaw",0.0));vehicle.rotation.y=vehicle.yaw
 	clock=float(cfg.get_value("world","clock",8.25))
 	weather=str(cfg.get_value("world","weather","Klar"))
-	quality=int(cfg.get_value("world","quality",1))
+	quality=int(cfg.get_value("world","quality",0))
 
 func _unhandled_key_input(event:InputEvent)->void:
 	if not (event is InputEventKey):return
