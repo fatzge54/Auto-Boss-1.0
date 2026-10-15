@@ -1,4 +1,4 @@
-name: AUTO BOSS Android
+name: AUTO BOSS 70 - Android & Open World
 
 on:
   workflow_dispatch:
@@ -83,11 +83,15 @@ jobs:
             exit 1
           fi
 
+      - name: Offline Projektstruktur und Features testen
+        run: python3 tools/check_open_world70.py
+
       - name: Grafik-Assets importieren
         run: godot --headless --editor --path . --import --quit
 
       - name: Open World Skripte prüfen
         run: |
+          set -o pipefail
           godot --headless --path . --quit-after 5 2>&1 | tee open_world_check.log
           if grep -E "SCRIPT ERROR|Parse Error|Parser Error" open_world_check.log; then exit 1; fi
 
@@ -99,6 +103,6 @@ jobs:
       - name: APK speichern
         uses: actions/upload-artifact@v4
         with:
-          name: AUTO-BOSS-62.0-APK
+          name: AUTO-BOSS-70.0-APK
           path: build/AUTO_BOSS.apk
           if-no-files-found: error
