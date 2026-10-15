@@ -612,6 +612,7 @@ func make_street_life(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGen
 	var car_dark:Array[Transform3D]=[]
 	var car_glass:Array[Transform3D]=[]
 	var car_lamps:Array[Transform3D]=[]
+	var car_wheels:Array[Transform3D]=[]
 	var shelter_posts:Array[Transform3D]=[]
 	var shelter_roofs:Array[Transform3D]=[]
 	var shelter_panels:Array[Transform3D]=[]
@@ -646,6 +647,7 @@ func make_street_life(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGen
 	add_batch(root,box_mesh,wheelhouse_material,car_dark)
 	add_batch(root,box_mesh,window_material,car_glass)
 	add_batch(root,box_mesh,road_marking_red,car_lamps)
+	add_batch(root,box_mesh,wheelhouse_material,car_wheels)
 	add_batch(root,box_mesh,metal_dark_mat,shelter_posts)
 	add_batch(root,box_mesh,railing_material,shelter_roofs)
 	add_batch(root,box_mesh,window_material,shelter_panels)
