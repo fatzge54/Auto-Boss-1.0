@@ -39,11 +39,17 @@ for fname,needles in {
     'career.gd':['set_contract_conditions()','deadline_minutes','on_time_bonus','cfg.set_value("job","time"'],
     'vehicle.gd':['make_tapered_shell','func drive','func receive_impact'],
     'traffic.gd':['light_clock','cruise_speeds','var stop:bool'],
-    'hud.gd':['AUTO BOSS 70.0','WorldMap.new()'],
+    'hud.gd':['WorldMap.new()'],
     'world_map.gd':['func _draw','proj('],
     'rain_fx.gd':['func tick','visible_instance_count'],
 }.items():
     for needle in needles:assert needle in scripts[fname],(fname,'missing feature',needle)
+# Displayed HUD version must match the installed project version, not a hard-coded old release.
+project_text = (ROOT/'project.godot').read_text(encoding='utf8')
+version_match = re.search(r'^config/name="AUTO BOSS ([0-9]+(?:\.[0-9]+)?)', project_text, re.MULTILINE)
+assert version_match, 'Missing AUTO BOSS version in project.godot'
+version = version_match.group(1)
+assert ('AUTO BOSS ' + version) in scripts['hud.gd'], ('hud.gd', 'project/HUD version mismatch', version)
 assert 'const HALF_EXTENT: float = 12500.0' in scripts['world_data.gd']
 assert 'const CHUNK_SIZE: float = 400.0' in scripts['world_data.gd']
 assert 'for i in range(32)' in scripts['career.gd']
