@@ -535,7 +535,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 34.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 51.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -580,7 +580,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 34.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 51.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -679,7 +679,7 @@ func show_main_menu():
 	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("50.0  •  GRAPHICS REBORN",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("51.0  •  ROADSIDE REMASTER",Vector2(50,94),16,Color(0.16,0.70,1.0))
 	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
@@ -767,7 +767,7 @@ func show_garage():
 	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 50.0 • VISUAL EDITION"
+	title.text="GARAGE 51.0 • VISUAL EDITION"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -1759,17 +1759,95 @@ func create_exit_area(z_pos,label_text):
 
 
 func create_roadside_buildings(pos):
+	# 51.0: Fewer, more convincing buildings. Textured facades contain realistic
+	# windows; a tiny roof mesh replaces the old fat flat red slab.
 	var root=Node3D.new()
 	root.position=pos
 	add_child(root)
-
 	for i in range(3):
-		var x=float(i-1)*5.0
-		var h=randf_range(2.5,4.5)
-		station_box(root,Vector3(3.6,h,4.2),Vector3(x,h/2.0,0),Color(0.70+randf_range(0,0.12),0.62+randf_range(0,0.12),0.48+randf_range(0,0.12)))
-		station_box(root,Vector3(4.0,0.45,4.6),Vector3(x,h+0.18,0),Color(0.38,0.12,0.08))
-		# Fensterfront zur Autobahn
-		station_box(root,Vector3(1.3,0.75,0.08),Vector3(x,h*0.60,-2.12),Color(0.12,0.30,0.42))
+		var x=float(i-1)*5.8
+		var z_shift=1.4 if i==1 else (-1.9 if i==2 else 0.0)
+		var h=randf_range(5.0,6.4)
+		var width=4.8
+		var depth=5.0
+		var walls=MeshInstance3D.new()
+		walls.name="TexturedHouse51"
+		var wall_box=BoxMesh.new()
+		wall_box.size=Vector3(width,h,depth)
+		walls.mesh=wall_box
+		walls.position=Vector3(x,h*0.5,z_shift)
+		walls.material_override=house_facade_material_510(i)
+		walls.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		walls.visibility_range_end=385.0
+		root.add_child(walls)
+		create_gable_roof_510(root,Vector3(x,h,z_shift),width+0.5,depth+0.55,1.25)
+		# Minimal architectural edge details; very few distinct draw objects.
+		station_box(root,Vector3(width+0.12,0.11,depth+0.11),Vector3(x,0.23,z_shift),Color(0.64,0.62,0.60))
+
+
+var house_material_cache_510={}
+
+func house_facade_material_510(style:int)->StandardMaterial3D:
+	var key=style%3
+	if house_material_cache_510.has(key):
+		return house_material_cache_510[key]
+	var textures=["facade_warm.png","facade_brick.png","facade_cream.png"]
+	var mat=StandardMaterial3D.new()
+	mat.albedo_texture=load("res://assets/graphics51/"+textures[key])
+	mat.roughness=0.93
+	mat.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	house_material_cache_510[key]=mat
+	return mat
+
+
+func roof_material_510()->StandardMaterial3D:
+	if house_material_cache_510.has("roof"):
+		return house_material_cache_510["roof"]
+	var mat=StandardMaterial3D.new()
+	mat.albedo_texture=load("res://assets/graphics51/roof_tiles.png")
+	mat.roughness=0.87
+	mat.cull_mode=BaseMaterial3D.CULL_DISABLED
+	mat.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	house_material_cache_510["roof"]=mat
+	return mat
+
+
+func add_roof_triangle_510(surface:SurfaceTool,a:Vector3,b:Vector3,c:Vector3,uv_a:Vector2,uv_b:Vector2,uv_c:Vector2)->void:
+	surface.set_uv(uv_a)
+	surface.add_vertex(a)
+	surface.set_uv(uv_b)
+	surface.add_vertex(b)
+	surface.set_uv(uv_c)
+	surface.add_vertex(c)
+
+
+func create_gable_roof_510(parent:Node3D,pos:Vector3,width:float,depth:float,rise:float)->void:
+	var half_w=width*0.5
+	var half_d=depth*0.5
+	var l_front=Vector3(-half_w,0,-half_d)
+	var r_front=Vector3(half_w,0,-half_d)
+	var l_back=Vector3(-half_w,0,half_d)
+	var r_back=Vector3(half_w,0,half_d)
+	var peak_front=Vector3(0,rise,-half_d)
+	var peak_back=Vector3(0,rise,half_d)
+	var surface=SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# Left and right roof slopes, front and rear gable ends.
+	add_roof_triangle_510(surface,l_front,l_back,peak_front,Vector2(0,0),Vector2(0,2),Vector2(1,0))
+	add_roof_triangle_510(surface,peak_front,l_back,peak_back,Vector2(1,0),Vector2(0,2),Vector2(1,2))
+	add_roof_triangle_510(surface,r_front,peak_front,r_back,Vector2(0,0),Vector2(1,0),Vector2(0,2))
+	add_roof_triangle_510(surface,peak_front,peak_back,r_back,Vector2(1,0),Vector2(1,2),Vector2(0,2))
+	add_roof_triangle_510(surface,l_front,peak_front,r_front,Vector2(0,1),Vector2(0.5,0),Vector2(1,1))
+	add_roof_triangle_510(surface,l_back,r_back,peak_back,Vector2(0,1),Vector2(1,1),Vector2(0.5,0))
+	surface.generate_normals()
+	var roof=MeshInstance3D.new()
+	roof.name="TileRoof51"
+	roof.mesh=surface.commit()
+	roof.position=pos
+	roof.material_override=roof_material_510()
+	roof.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	roof.visibility_range_end=385.0
+	parent.add_child(roof)
 
 
 func create_extra_scenery_52():
@@ -2563,7 +2641,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 50.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 51.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -2661,8 +2739,7 @@ func create_visual_upgrade_100():
 	for z in range(-30,-2980,-55):
 		station_box(self,Vector3(0.16,0.08,0.42),Vector3(-3.0,0.19,z),Color(0.92,0.92,0.72))
 		station_box(self,Vector3(0.16,0.08,0.42),Vector3(3.0,0.19,z-24),Color(0.92,0.92,0.72))
-	for z in range(-160,-2900,-310):
-		station_box(self,Vector3(3.2,0.018,8.0),Vector3(-2.0,0.12,z),Color(0.085,0.09,0.10))
+	# 51.0: Remove nine black legacy asphalt stickers floating above the textured road.
 	# Lärmschutzwände in einigen Abschnitten.
 	for z0 in [-520.0,-1560.0,-2460.0]:
 		create_noise_barrier_100(z0,1.0)
@@ -2873,14 +2950,36 @@ func create_delineator_170(pos:Vector3,right_side:bool):
 	var rx=0.055 if right_side else -0.055
 	station_box(root,Vector3(0.07,0.09,0.19),Vector3(rx,0.81,-0.02),Color(0.96,0.96,0.90))
 
+func acoustic_material_510()->StandardMaterial3D:
+	if house_material_cache_510.has("acoustic"):
+		return house_material_cache_510["acoustic"]
+	var mat=StandardMaterial3D.new()
+	mat.albedo_texture=load("res://assets/graphics51/acoustic_barrier.png")
+	mat.roughness=0.82
+	mat.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	house_material_cache_510["acoustic"]=mat
+	return mat
+
+
 func create_noise_barrier_170(pos:Vector3):
 	if is_service_clear_zone_200(pos.z):
 		return
-	var root=Node3D.new(); root.position=pos; add_child(root)
-	station_box(root,Vector3(0.14,3.0,39.0),Vector3(0,1.55,0),Color(0.30,0.49,0.56))
+	var root=Node3D.new()
+	root.position=pos
+	add_child(root)
+	var wall=MeshInstance3D.new()
+	var panel=BoxMesh.new()
+	panel.size=Vector3(0.14,3.0,39.0)
+	wall.mesh=panel
+	wall.position=Vector3(0,1.55,0)
+	wall.material_override=acoustic_material_510()
+	wall.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	wall.visibility_range_end=380.0
+	root.add_child(wall)
 	station_box(root,Vector3(0.17,0.10,39.2),Vector3(0,3.05,0),Color(0.68,0.73,0.75))
 	for zz in [-18.0,-9.0,0.0,9.0,18.0]:
 		station_box(root,Vector3(0.22,3.25,0.16),Vector3(0,1.62,zz),Color(0.55,0.59,0.61))
+
 
 func create_forest_strip_170(pos:Vector3):
 	for i in range(7):
@@ -3382,8 +3481,7 @@ func create_realism_revolution_220():
 		for side in [-1.0,1.0]:
 			var x=side*7.72
 			station_box(self,Vector3(0.12,0.012,1.8),Vector3(x,0.235,float(z)),Color(0.73,0.74,0.71))
-	for z in range(-110,-2850,-185):
-		station_box(self,Vector3(4.6,0.009,12.0),Vector3(0.0,0.227,float(z)),Color(0.115,0.119,0.125))
+	# 51.0: Remove 15 broad, dark rectangles that were still drawn on top of asphalt.
 	# Leitpfosten mit rot-weißen Reflektoren, in größerem Abstand für mobile Performance.
 	for z in range(-60,-2910,-110):
 		for side in [-1.0,1.0]:
