@@ -544,7 +544,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 52.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 61.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -589,7 +589,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 52.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 61.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -688,7 +688,7 @@ func show_main_menu():
 	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("52.0  •  ROADSIDE LIGHTING",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("61.0  •  TRAFFIC VISUAL REMASTER",Vector2(50,94),16,Color(0.16,0.70,1.0))
 	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
@@ -776,7 +776,7 @@ func show_garage():
 	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 52.0 • VISUAL EDITION"
+	title.text="GARAGE 61.0 • VISUAL EDITION"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -1146,27 +1146,87 @@ func spawn_traffic(z_pos):
 
 
 
-# 41.0: Simple silhouette for distant traffic, avoiding dozens of draw calls
-# and expensive wheel detail until a vehicle approaches the player.
+# 61.0: Roadworthy low-detail vehicle silhouettes instead of bright rectangles.
+# Each NPC keeps a readable hood, glazed cabin, wheels and rear lighting,
+# including when its full model is not yet built. The wheel set is one draw call.
+func add_traffic_wheels_610(root:Node3D,wheelbase:float,half_width:float=1.01)->void:
+	var tire=CylinderMesh.new()
+	tire.top_radius=0.39
+	tire.bottom_radius=0.39
+	tire.height=0.29
+	tire.radial_segments=10
+	var transforms=MultiMesh.new()
+	transforms.transform_format=MultiMesh.TRANSFORM_3D
+	transforms.mesh=tire
+	transforms.instance_count=4
+	var index=0
+	for side in [-1.0,1.0]:
+		for axle in [-1.0,1.0]:
+			var pose=Transform3D(Basis(Vector3.FORWARD,PI*0.5),Vector3(side*half_width,0.42,axle*wheelbase*0.5))
+			transforms.set_instance_transform(index,pose)
+			index+=1
+	var wheels=MultiMeshInstance3D.new()
+	wheels.name="FourWheels61"
+	wheels.multimesh=transforms
+	wheels.material_override=material(Color(0.015,0.018,0.022))
+	root.add_child(wheels)
+
+
 func create_traffic_lod_410(t:Node3D,traffic_type:int,paint:Color)->void:
 	var root=Node3D.new()
 	root.name="LowDetail41"
 	t.add_child(root)
-	var truck=traffic_type<2
-	var long_car=truck or traffic_type<4
-	var size_z=6.1 if truck else (4.6 if long_car else 4.1)
-	station_box(root,Vector3(2.02,0.62,size_z),Vector3(0,0.78,0.0),paint)
-	if truck:
-		station_box(root,Vector3(2.12,1.55,3.75),Vector3(0,1.61,1.02),Color(0.80,0.82,0.84))
-		station_box(root,Vector3(1.75,0.50,0.08),Vector3(0,1.40,-2.98),Color(0.05,0.11,0.16))
+	var is_truck=traffic_type<2
+	var is_van=traffic_type>=2 and traffic_type<4
+	if is_truck:
+		# Cargo body is neutral silver, not a solid bright-painted block.
+		station_box(root,Vector3(2.08,0.22,7.0),Vector3(0,0.56,0.12),Color(0.09,0.11,0.13))
+		station_box(root,Vector3(2.31,2.15,4.28),Vector3(0,1.75,1.02),Color(0.73,0.77,0.80))
+		station_box(root,Vector3(2.06,0.11,4.40),Vector3(0,2.87,1.02),Color(0.49,0.56,0.60))
+		station_box(root,Vector3(2.12,1.78,2.50),Vector3(0,1.48,-2.23),paint.darkened(0.10))
+		station_box(root,Vector3(1.82,0.67,0.055),Vector3(0,1.93,-3.52),Color(0.045,0.12,0.17))
+		station_box(root,Vector3(1.82,0.13,0.08),Vector3(0,0.78,-3.53),Color(0.08,0.10,0.11))
+		station_box(root,Vector3(1.83,0.11,0.06),Vector3(0,0.91,3.19),Color(0.80,0.12,0.08))
+		add_traffic_wheels_610(root,5.0,1.09)
+	elif is_van:
+		# Raised cargo van with a sloping bonnet and a readable windshield.
+		vehicle_shell_290(root,[
+			[-2.45,0.83,0.46,0.90,1.06],
+			[-2.05,1.00,0.45,1.07,1.24],
+			[-1.37,1.03,0.44,1.14,1.52],
+			[1.67,1.02,0.45,1.10,1.50],
+			[2.43,0.85,0.46,0.95,1.10]
+		],paint)
+		station_box(root,Vector3(1.78,0.55,2.65),Vector3(0,1.53,0.05),paint.darkened(0.12))
+		station_box(root,Vector3(1.63,0.50,0.07),Vector3(0,1.50,-1.85),Color(0.035,0.10,0.15))
+		station_box(root,Vector3(1.65,0.08,0.07),Vector3(0,0.94,2.46),Color(0.82,0.11,0.07))
+		add_traffic_wheels_610(root,3.25,1.02)
 	else:
-		station_box(root,Vector3(1.64,0.55,2.05),Vector3(0,1.37,0.10),paint.darkened(0.16))
-		station_box(root,Vector3(1.52,0.07,1.70),Vector3(0,1.65,0.10),Color(0.04,0.11,0.15))
-	# Keep recognisable wheels, front and back even at a distance.
-	for x in [-1.03,1.03]:
-		for z in [-size_z*0.32,size_z*0.32]:
-			station_box(root,Vector3(0.27,0.66,0.72),Vector3(x,0.46,z),Color(0.025,0.027,0.03))
-	station_box(root,Vector3(1.32,0.10,0.08),Vector3(0,0.85,size_z*0.5+0.03),Color(0.82,0.07,0.045))
+		# Shaped shoulder and sloped glass cabin; low polygon count for mobile.
+		var is_suv=traffic_type>=4 and traffic_type<7
+		var roof_height=1.80 if is_suv else 1.63
+		vehicle_shell_290(root,[
+			[-2.15,0.75,0.42,0.67,0.75],
+			[-1.80,0.96,0.41,0.88,0.98],
+			[-1.10,1.04,0.42,1.03,1.13],
+			[0.85,1.04,0.42,1.03,1.13],
+			[1.82,0.93,0.42,0.88,0.96],
+			[2.15,0.73,0.42,0.68,0.76]
+		],paint)
+		vehicle_shell_290(root,[
+			[-1.12,0.81,1.04,1.10,1.12],
+			[-0.56,0.76,1.09,roof_height-0.10,roof_height],
+			[0.79,0.77,1.08,roof_height-0.10,roof_height],
+			[1.20,0.82,1.03,1.11,1.15]
+		],paint.darkened(0.12))
+		vehicle_side_glass_310(root,-1.0,-0.62,0.72,1.12,roof_height-0.10,0.10)
+		vehicle_side_glass_310(root,1.0,-0.62,0.72,1.12,roof_height-0.10,0.10)
+		station_box(root,Vector3(1.35,0.06,0.08),Vector3(0,0.92,2.15),Color(0.86,0.09,0.065))
+		add_traffic_wheels_610(root,2.70)
+	# Shared very small lamps help identify car orientation at a glance.
+	for side in [-0.70,0.70]:
+		var rear_z=3.20 if is_truck else (2.44 if is_van else 2.13)
+		station_box(root,Vector3(0.23,0.12,0.04),Vector3(side,0.88,rear_z),Color(0.94,0.09,0.055))
 
 
 func upgrade_traffic_detail_410(t:Node3D)->void:
@@ -1215,8 +1275,24 @@ func update_traffic(delta):
 		if is_instance_valid(other) and bool(other.get_meta("full_detail_410",false)):
 			detailed_count_430+=1
 	var fps_now_430=Engine.get_frames_per_second()
-	var detail_distance_430=64.0 if fps_now_430>=58.0 else 38.0
-	var upgraded_this_tick_410=false
+	var detail_distance_430=100.0 if fps_now_430>=90.0 else 64.0
+	var detail_limit_610=8 if fps_now_430>=90.0 else 5
+	# Closest low-detail car gets the next upgrade slot, not the oldest entry
+	# in the array. Scan at 4 Hz and still build only one detailed car per slot.
+	if traffic_scan_due_390 and traffic_detail_cooldown_430<=0.0:
+		var closest_car_610:Node3D=null
+		var closest_gap_610=9999.0
+		for candidate in traffic:
+			if not is_instance_valid(candidate) or bool(candidate.get_meta("full_detail_410",false)):
+				continue
+			var gap_610=abs(candidate.position.z-car.position.z)
+			if gap_610<detail_distance_430 and gap_610<closest_gap_610:
+				closest_car_610=candidate
+				closest_gap_610=gap_610
+		if closest_car_610!=null and (detailed_count_430<detail_limit_610 or (closest_gap_610<28.0 and detailed_count_430<detail_limit_610+2)):
+			upgrade_traffic_detail_410(closest_car_610)
+			traffic_detail_cooldown_430=0.30 if fps_now_430>=75.0 else 0.55
+			traffic_upgrade_count_430+=1
 
 	for t in traffic.duplicate():
 		if not is_instance_valid(t):
@@ -1272,16 +1348,6 @@ func update_traffic(delta):
 			t.queue_free()
 			continue
 
-		# Don't build huge detailed cars 145 m in front of the camera.
-		# Their full models are reserved for close pass-by scenes; upgrades are
-		# spaced over time to avoid momentary frame-time spikes.
-		if not upgraded_this_tick_410 and traffic_detail_cooldown_430<=0.0 and detailed_count_430<5:
-			if not bool(t.get_meta("full_detail_410",false)) and abs(t.position.z-car.position.z)<detail_distance_430:
-				upgrade_traffic_detail_410(t)
-				upgraded_this_tick_410=true
-				traffic_detail_cooldown_430=0.65
-				detailed_count_430+=1
-				traffic_upgrade_count_430+=1
 		check_collision(t)
 
 
@@ -2654,7 +2720,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 60.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 61.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -3869,7 +3935,7 @@ func create_visual_world_600()->void:
     create_meadow_clusters_600()
     create_road_shoulders_600()
     create_guardrail_detail_600()
-    print("AUTO BOSS 60.0: ",forest_near_count_600," solid roadside trees with instanced geometry")
+    print("AUTO BOSS 61.0: ",forest_near_count_600," solid roadside trees with instanced geometry")
 
 
 func tree_mesh_600(species:int)->ArrayMesh:
