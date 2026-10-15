@@ -1,7 +1,7 @@
 config_version=5
 
 [application]
-config/name="AUTO BOSS 60.0 - Landscape Depth"
+config/name="AUTO BOSS 62.0 - German Roads Open World"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"

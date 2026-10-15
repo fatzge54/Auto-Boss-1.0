@@ -1,18 +1,11 @@
-# AUTO BOSS 50.0 – Graphics Reborn
+# AUTO BOSS 62.0 – GERMAN ROADS
 
-Aktuelle Version: **50.0**. Änderungen, Build-Hinweise und Tests: [README_50.0_GRAPHICS_REBORN.md](README_50.0_GRAPHICS_REBORN.md).
+**Aktive Spielszene:** `main.tscn` – neue Godot-Open-World-Simulation mit 25 × 25 km Koordinatenbereich, Streaming, fünf regionalen Zentren und Fahrzeugüberführungs-Karriere.
 
----
+**Klassische Version 61:** `legacy_main.tscn` – bisherige 3D-Fahrstrecke einschließlich sämtlicher bisherigen Effekte und Systeme. Die neue Version lässt die alte Quelle in `scripts/main.gd` unverändert.
 
-# AUTO BOSS 5.0
+**Vollständige Projektanleitung, tatsächlich umgesetzte Funktionen und noch offene Punkte:** `README_62.0_GERMAN_ROADS.md` und `docs/OPEN_WORLD_62_REALISIERUNG.md`.
 
-Karriere- und Wirtschaftsupdate auf Basis des getesteten 4.0/3.0-Projekts.
+**GitHub:** Den Inhalt des äußeren Verzeichnisses `Auto-Boss-1.0-main` ins Repository hochladen. Unter `.github/workflows/android-build.yml` ist der Debug-APK-Build eingerichtet.
 
-Neu:
-- Bußgelder werden im Netto-Ergebnis der Fahrt berücksichtigt
-- Karriere-XP und sichere Fahrten in Serie
-- kumulierte Bußgelder werden gespeichert
-- bestehende Systeme für Wetter, Tag/Nacht, Verkehr, Blitzer, Tank, Werkstatt,
-  Schaden, Aufträge, Garage, Pause und Abrechnung bleiben erhalten
-
-Den letzten stabilen Build als Backup behalten.
+**Qualitätsstatus:** Quelltext und Dateiverweise wurden offline strukturell getestet; ein tatsächlicher Lauf in Godot 4.7.2 und auf Android muss noch erfolgen. Die fiktive 625-km²-Welt ist eine prozedurale technische Basis, keine final handgefertigte AAA-Spielwelt.
