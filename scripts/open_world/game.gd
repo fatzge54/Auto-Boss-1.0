@@ -21,6 +21,7 @@ var rain_fx:Node3D
 var sky_update_acc:float=0.0
 var weather_material_acc:float=0.0
 var save_acc:float=0.0
+var static_collision_cooldown:float=0.0
 var route:Array[Vector2]=[]
 var stage_target:Vector2=Vector2.ZERO
 var current_region:String="Lindenfurt"
@@ -124,12 +125,17 @@ func _physics_process(delta:float)->void:
 	var grip:float=0.70 if weather=="Starkregen" else (0.85 if weather=="Regen" else 1.0)
 	vehicle.engine_mod=1.0+0.10*career.engine_upgrade
 	vehicle.brake_mod=1.0+0.13*career.brake_upgrade
+	static_collision_cooldown=maxf(0.0,static_collision_cooldown-delta)
 	var previous_position:Vector3=vehicle.position
 	vehicle.drive(delta,gas_input,brake_input,right_input-left_input,grip)
 	if world.hit_static(vehicle.position):
 		var impact:float=absf(vehicle.speed)
 		vehicle.position=previous_position
-		vehicle.receive_impact(impact)
+		# An obstacle is only one accident, not a new crash every physics tick.
+		if impact>2.5 and static_collision_cooldown<=0.0:
+			vehicle.receive_impact(impact)
+			static_collision_cooldown=1.4
+		vehicle.speed=0.0
 	traffic.update_movement(delta)
 	world_acc+=delta
 	if world_acc>=0.12:

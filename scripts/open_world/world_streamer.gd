@@ -223,6 +223,7 @@ func spawn_chunk(key:Vector2i) -> void:
 	make_roads(root,p,terrain_type)
 	make_road_environment(root,p,terrain_type,rng)
 	make_details(root,p,terrain_type,rng)
+	make_street_life(root,p,terrain_type,rng)
 	make_landmark(root,p)
 	make_direction_sign(root,p,terrain_type)
 
@@ -604,6 +605,51 @@ func make_details(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerat
 	add_batch(root,box_mesh,pavement_material,lamps)
 	add_batch(root,box_mesh,lamp_material,lamp_heads)
 
+func make_street_life(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerator)->void:
+	# Lightweight stationary street traffic and bus shelters, batched for mobile GPUs.
+	if kind=="rural":return
+	var car_light:Array[Transform3D]=[]
+	var car_dark:Array[Transform3D]=[]
+	var car_glass:Array[Transform3D]=[]
+	var car_lamps:Array[Transform3D]=[]
+	var shelter_posts:Array[Transform3D]=[]
+	var shelter_roofs:Array[Transform3D]=[]
+	var shelter_panels:Array[Transform3D]=[]
+	var slots:int=3 if detail_level==0 else (5 if detail_level==1 else 7)
+	for side in [-1.0,1.0]:
+		for n in range(slots):
+			var along:float=-165.0+float(n)*330.0/maxf(1.0,float(slots-1))
+			along+=rng.randf_range(-7.0,7.0)
+			if absf(along)<44.0:continue
+			var across:float=side*23.5
+			var point:=Vector2(center.x+across,center.y+along)
+			var ground:float=Data.height_at(point.x,point.y)
+			var origin:=Vector3(across,ground,along)
+			var shell:=Transform3D(Basis.IDENTITY.scaled(Vector3(1.95,0.75,4.1)),origin+Vector3(0,0.59,0))
+			if (n+int(side))%2==0:car_light.append(shell)
+			else:car_dark.append(shell)
+			car_glass.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1.60,0.46,2.05)),origin+Vector3(0,1.18,0.12)))
+			car_lamps.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1.38,0.13,0.10)),origin+Vector3(0,0.77,2.07)))
+			for wheel_side in [-1.0,1.0]:
+				for wheel_z in [-1.25,1.25]:
+					car_wheels.append(Transform3D(Basis.IDENTITY.scaled(Vector3(0.24,0.64,0.62)),origin+Vector3(wheel_side*0.98,0.35,wheel_z)))
+	# Exactly one shelter per occupied sector: enough variety without heavy scene trees.
+	if kind=="city" or kind=="village":
+		var bx:float=29.0
+		var bz:float=-112.0
+		var shelter_ground:float=Data.height_at(center.x+bx,center.y+bz)
+		for side in [-1.0,1.0]:
+			shelter_posts.append(Transform3D(Basis.IDENTITY.scaled(Vector3(0.19,2.7,0.19)),Vector3(bx,shelter_ground+1.35,bz+side*2.2)))
+		shelter_roofs.append(Transform3D(Basis.IDENTITY.scaled(Vector3(2.8,0.17,5.2)),Vector3(bx,shelter_ground+2.8,bz)))
+		shelter_panels.append(Transform3D(Basis.IDENTITY.scaled(Vector3(0.10,2.1,4.4)),Vector3(bx+1.35,shelter_ground+1.13,bz)))
+	add_batch(root,box_mesh,railing_material,car_light)
+	add_batch(root,box_mesh,wheelhouse_material,car_dark)
+	add_batch(root,box_mesh,window_material,car_glass)
+	add_batch(root,box_mesh,road_marking_red,car_lamps)
+	add_batch(root,box_mesh,metal_dark_mat,shelter_posts)
+	add_batch(root,box_mesh,railing_material,shelter_roofs)
+	add_batch(root,box_mesh,window_material,shelter_panels)
+
 func add_batch(root:Node3D,mesh:Mesh,mat:Material,transforms:Array) -> void:
 	if transforms.is_empty():return
 	var multi:=MultiMesh.new()
@@ -685,8 +731,12 @@ func make_direction_sign(root:Node3D,center:Vector2,kind:String)->void:
 
 func hit_static(world_position:Vector3)->bool:
 	var key:=Vector2i(roundi(world_position.x/Data.CHUNK_SIZE),roundi(world_position.z/Data.CHUNK_SIZE))
-	if not building_colliders.has(key):return false
 	var p:=Vector2(world_position.x,world_position.z)
-	for rectangle in building_colliders[key]:
-		if rectangle.grow(1.6).has_point(p):return true
+	# Buildings can extend across chunk borders: check adjacent sectors too.
+	for dx in range(-1,2):
+		for dz in range(-1,2):
+			var near_key:Vector2i=key+Vector2i(dx,dz)
+			if not building_colliders.has(near_key):continue
+			for rectangle in building_colliders[near_key]:
+				if rectangle.grow(1.3).has_point(p):return true
 	return false

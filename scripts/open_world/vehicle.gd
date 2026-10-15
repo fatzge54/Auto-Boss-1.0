@@ -256,9 +256,14 @@ func drive(delta:float,throttle:float,braking:float,steering:float,weather_grip:
 		engine_sound.volume_db=-14.0 if absf(speed)<1.0 else -7.0
 
 func receive_impact(relative_speed:float)->void:
-	var hit:float=clampf(relative_speed*1.8,2.0,26.0)
+	# Speed values are m/s. Parking bumps should not destroy a customer vehicle.
+	var impact_speed:float=absf(relative_speed)
+	if impact_speed<3.0:
+		speed*=0.4
+		return
+	var hit:float=clampf((impact_speed-3.0)*0.42,0.5,16.0)
 	damage=minf(100.0,damage+hit)
-	speed*=0.32
+	speed*=0.22
 
 func kmh()->int:
 	return roundi(absf(speed)*3.6)
