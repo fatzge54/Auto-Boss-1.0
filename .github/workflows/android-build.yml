@@ -86,6 +86,11 @@ jobs:
       - name: Grafik-Assets importieren
         run: godot --headless --editor --path . --import --quit
 
+      - name: Open World Skripte prüfen
+        run: |
+          godot --headless --path . --quit-after 5 2>&1 | tee open_world_check.log
+          if grep -E "SCRIPT ERROR|Parse Error|Parser Error" open_world_check.log; then exit 1; fi
+
       - name: AUTO BOSS APK bauen
         run: |
           mkdir -p build
@@ -94,6 +99,6 @@ jobs:
       - name: APK speichern
         uses: actions/upload-artifact@v4
         with:
-          name: AUTO-BOSS-60.0-APK
+          name: AUTO-BOSS-62.0-APK
           path: build/AUTO_BOSS.apk
           if-no-files-found: error
