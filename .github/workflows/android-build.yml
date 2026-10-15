@@ -1,4 +1,4 @@
-name: AUTO BOSS 70 - Android & Open World
+name: AUTO BOSS 71 - Android & Open World
 
 on:
   workflow_dispatch:
@@ -84,7 +84,7 @@ jobs:
           fi
 
       - name: Offline Projektstruktur und Features testen
-        run: python3 tools/check_open_world70.py
+        run: python3 tools/check_open_world71.py
 
       - name: Grafik-Assets importieren
         run: godot --headless --editor --path . --import --quit
@@ -103,6 +103,6 @@ jobs:
       - name: APK speichern
         uses: actions/upload-artifact@v4
         with:
-          name: AUTO-BOSS-70.0-APK
+          name: AUTO-BOSS-71.0-APK
           path: build/AUTO_BOSS.apk
           if-no-files-found: error
