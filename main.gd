@@ -29,6 +29,13 @@ var batched_box_count_400=0
 var batched_draw_groups_400=0
 # 50.0: texture-driven world, chunked terrain, and batched cutout forest.
 var asphalt_material_500:ShaderMaterial
+# 52.0: consistent road-verge illumination (both sides, all weather states).
+var verge_material_520:ShaderMaterial
+# 60.0: compact geometry-based forest and periodical sky mood lighting.
+var canopy_bark_material_600:StandardMaterial3D
+var canopy_leaf_material_600:StandardMaterial3D
+var sky_mood_accumulator_600=0.0
+var forest_near_count_600=0
 var tree_instances_500={}
 var tree_mesh_500:ArrayMesh
 var tree_materials_500={}
@@ -180,6 +187,7 @@ func _ready():
 	create_next_gen_landscape_260()
 	create_roadside_nature_420()
 	create_visual_world_500()
+	create_visual_world_600()
 	create_service_station_at(Vector3(16.0,0,-520.0),"SERVICE SÜD",1.79)
 	create_service_station_at(Vector3(16.0,0,-1120.0),"SERVICE MITTE",1.89)
 	create_service_station_at(Vector3(16.0,0,-1720.0),"SERVICE NORD",1.84)
@@ -199,6 +207,7 @@ func _physics_process(delta):
 	world_update_accumulator_350+=delta
 	if world_update_accumulator_350>=0.10:
 		update_world_30(world_update_accumulator_350)
+		update_sky_mood_600(world_update_accumulator_350)
 		world_update_accumulator_350=0.0
 	update_road_events_40(delta)
 	update_player(delta)
@@ -535,7 +544,7 @@ func branch_income_131(index):
 func show_branch_network_131():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 51.0 • NIEDERLASSUNGEN"
+	title.text="AUTO BOSS 52.0 • NIEDERLASSUNGEN"
 	title.position=Vector2(300,35)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -580,7 +589,7 @@ func show_branch_network_131():
 func show_company_dispatch_133():
 	clear_menu()
 	var title=Label.new()
-	title.text="AUTO BOSS 51.0 • CONTRACT COMMAND"
+	title.text="AUTO BOSS 52.0 • CONTRACT COMMAND"
 	title.position=Vector2(365,24)
 	title.add_theme_font_size_override("font_size",30)
 	menu_root.add_child(title)
@@ -679,7 +688,7 @@ func show_main_menu():
 	var glow=ColorRect.new(); glow.color=Color(0.02,0.16,0.34,0.72); glow.position=Vector2(395,22); glow.size=Vector2(860,5); menu_root.add_child(glow)
 	empire_panel_140(Vector2(22,22),Vector2(360,676),0.985)
 	empire_label_140("AUTO BOSS",Vector2(48,42),44,Color.WHITE)
-	empire_label_140("51.0  •  ROADSIDE REMASTER",Vector2(50,94),16,Color(0.16,0.70,1.0))
+	empire_label_140("52.0  •  ROADSIDE LIGHTING",Vector2(50,94),16,Color(0.16,0.70,1.0))
 	empire_label_140("DRIVE  •  BUILD  •  DOMINATE",Vector2(50,126),11,Color(0.55,0.68,0.78))
 	empire_label_140("DEIN WEG ZUM AUTO-IMPERIUM",Vector2(438,62),14,Color(0.38,0.72,1.0))
 	empire_label_140("FAHRZEUGÜBERFÜHRUNG. ABER ALS GAME.",Vector2(438,88),29,Color.WHITE)
@@ -767,7 +776,7 @@ func show_garage():
 	var garage_line=ColorRect.new(); garage_line.color=Color(0.02,0.38,0.78,0.9); garage_line.position=Vector2(260,76); garage_line.size=Vector2(760,3); menu_root.add_child(garage_line)
 
 	var title=Label.new()
-	title.text="GARAGE 51.0 • VISUAL EDITION"
+	title.text="GARAGE 52.0 • VISUAL EDITION"
 	title.position=Vector2(405,28)
 	title.add_theme_font_size_override("font_size",32)
 	menu_root.add_child(title)
@@ -1347,6 +1356,8 @@ func update_world_30(delta):
 
 	var sun_factor=clamp(sin(day_clock*PI),0.08,1.0)
 	var is_night=day_clock>0.78 or day_clock<0.10
+	if verge_material_520!=null:
+		verge_material_520.set_shader_parameter("daylight",0.40 if is_night else (0.70 if weather_state=="Regen" else 0.95))
 
 	if world_env!=null:
 		# 50.0: Procedural sky is for clear daytime. BG_COLOR is required
@@ -1581,19 +1592,20 @@ varying vec3 world_road;
 void vertex() { world_road=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz; }
 void fragment() {
     vec2 p=world_road.xz;
-    vec2 tile_uv=p*0.15;
-    vec3 aggregate=texture(asphalt_tex,tile_uv).rgb;
-    float distant_variation=sin(p.y*0.024)*0.018 + sin(p.y*0.041+p.x*0.25)*0.008;
+    vec2 tile_uv=p*0.105;
+    // Reduce far-distance salt-and-pepper shimmer from the previous road texture.
+    vec3 aggregate=mix(vec3(0.185,0.201,0.221),texture(asphalt_tex,tile_uv).rgb,0.36);
+    float distant_variation=sin(p.y*0.018)*0.010 + sin(p.y*0.031+p.x*0.21)*0.006;
     // Fine tire polish, no black scar quads or thick repeated bands.
     float tracks=(1.0-smoothstep(0.0,0.7,abs(abs(p.x)-2.0)))*0.012;
     tracks+=(1.0-smoothstep(0.0,0.7,abs(abs(p.x)-5.0)))*0.012;
     float edge_pale=smoothstep(7.7,8.95,abs(p.x))*0.03;
-    ALBEDO=clamp(aggregate*vec3(0.94,0.96,0.99)+vec3(distant_variation+edge_pale-tracks),vec3(0.01),vec3(0.84));
-    ALBEDO=mix(ALBEDO,ALBEDO*0.61,wetness);
+    ALBEDO=clamp(aggregate*vec3(0.89,0.92,0.97)+vec3(distant_variation+edge_pale-tracks),vec3(0.02),vec3(0.75));
+    ALBEDO=mix(ALBEDO,ALBEDO*0.72,wetness);
     NORMAL_MAP=texture(asphalt_norm,tile_uv).rgb;
-    NORMAL_MAP_DEPTH=0.38;
-    ROUGHNESS=mix(0.89,0.36,wetness);
-    SPECULAR=0.45;
+    NORMAL_MAP_DEPTH=0.12;
+    ROUGHNESS=mix(0.94,0.46,wetness);
+    SPECULAR=0.30;
     METALLIC=0.0;
 }
 """
@@ -1781,6 +1793,7 @@ func create_roadside_buildings(pos):
 		walls.visibility_range_end=385.0
 		root.add_child(walls)
 		create_gable_roof_510(root,Vector3(x,h,z_shift),width+0.5,depth+0.55,1.25)
+		add_house_details_600(root,x,z_shift,h,width,depth,i)
 		# Minimal architectural edge details; very few distinct draw objects.
 		station_box(root,Vector3(width+0.12,0.11,depth+0.11),Vector3(x,0.23,z_shift),Color(0.64,0.62,0.60))
 
@@ -2641,7 +2654,7 @@ func set_control(kind,pressed):
 
 
 func update_hud():
-	speed_label.text="AUTO BOSS 51.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
+	speed_label.text="AUTO BOSS 60.0  •  "+str(int(Engine.get_frames_per_second()))+" FPS\n"+str(int(speed*3.6))+" km/h   ◉ "+str(speed_limit)
 	mission_label.text="AUFTRAG: "+routes[selected_route]["name"]+"  ["+contract_class_name()+"]"
 	info_label.text=str(int(distance_left))+" km   •   Tank "+str(int(fuel))+"%   •   Schaden "+str(int(damage))+"%"
 	money_label.text=str(money)+" €"
@@ -3544,46 +3557,75 @@ func create_roadside_nature_420()->void:
 # Strips are at y=0.008, higher than the old terrain's -0.05 top, but below
 # existing raised service forecourts and highway installations.
 func create_green_verges_420()->void:
-	var surface=SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# 52.0: Consistent illuminated vegetation on BOTH motorway sides.
+	# The previous large, vertex-colored mesh could shade one-facing polygons
+	# extremely dark on mobile. A cull-free, unshaded texture uses a controlled
+	# day/rain/night factor instead of receiving the highway's giant shadows.
+	# Chunking at 250 m allows culling without hundreds of individual objects.
 	var edges=[10.8,14.0,21.0,30.0,39.0]
-	var band_colors=[
-		Color(0.30,0.32,0.26), # gravel verge directly next to guardrail
-		Color(0.17,0.30,0.12), # darker, rough grass
-		Color(0.21,0.35,0.15), # meadow
-		Color(0.23,0.34,0.13)  # distant meadow
+	var bands=[
+		Color(0.48,0.45,0.37),
+		Color(0.36,0.47,0.31),
+		Color(0.39,0.51,0.34),
+		Color(0.44,0.52,0.35)
 	]
+	var shader=Shader.new()
+	shader.code="""shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform sampler2D grass_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform float daylight = 0.95;
+varying vec3 world_position;
+void vertex(){ world_position=(MODEL_MATRIX * vec4(VERTEX,1.0)).xyz; }
+void fragment(){
+    vec3 tex=texture(grass_tex,world_position.xz*0.090).rgb;
+    float meadow=0.96+0.045*sin(world_position.z*0.044+world_position.x*0.13);
+    vec3 grass=mix(vec3(0.24,0.32,0.18),tex,0.49);
+    ALBEDO=clamp(grass*COLOR.rgb*2.23*daylight*meadow,vec3(0.018),vec3(0.68));
+    ROUGHNESS=1.0;
+}
+"""
+	var mat=ShaderMaterial.new()
+	mat.shader=shader
+	mat.set_shader_parameter("grass_tex",load("res://assets/graphics50/grass_albedo.png"))
+	verge_material_520=mat
 	for side in [-1.0,1.0]:
-		for section in range(150):
-			var z0=-float(section)*20.0
-			var z1=z0-20.0
-			for band in range(4):
-				var jitter0=0.0 if band==0 else sin(float(section)*0.52+float(band)*1.72)*0.65
-				var jitter1=0.0 if band==0 else sin(float(section+1)*0.52+float(band)*1.72)*0.65
-				var next0=0.0 if band==3 else sin(float(section)*0.52+float(band+1)*1.72)*0.65
-				var next1=0.0 if band==3 else sin(float(section+1)*0.52+float(band+1)*1.72)*0.65
-				var x0=side*(float(edges[band])+jitter0)
-				var x1=side*(float(edges[band+1])+next0)
-				var x2=side*(float(edges[band])+jitter1)
-				var x3=side*(float(edges[band+1])+next1)
-				var shade=0.88+0.12*sin(float(section)*1.91+float(band)*2.2)
-				var base_color:Color=band_colors[band]*shade
-				base_color.a=1.0
-				var a=Vector3(x0,0.008,z0)
-				var b=Vector3(x1,0.008,z0)
-				var c=Vector3(x2,0.008,z1)
-				var d=Vector3(x3,0.008,z1)
-				add_verge_triangle_420(surface,a,b,c,base_color)
-				add_verge_triangle_420(surface,b,d,c,base_color)
-	var verge_mesh=MeshInstance3D.new()
-	verge_mesh.name="NaturalVerges42"
-	verge_mesh.mesh=surface.commit()
-	var verge_material=StandardMaterial3D.new()
-	verge_material.vertex_color_use_as_albedo=true
-	verge_material.roughness=1.0
-	verge_material.cull_mode=BaseMaterial3D.CULL_DISABLED
-	verge_mesh.material_override=verge_material
-	add_child(verge_mesh)
+		for chunk in range(12):
+			var surface=SurfaceTool.new()
+			surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+			for local_section in range(13):
+				var section=chunk*13+local_section
+				if section>=150:
+					break
+				var z0=-float(section)*20.0
+				var z1=z0-20.0
+				for band in range(4):
+					var jitter0=0.0 if band==0 else sin(float(section)*0.52+float(band)*1.72)*0.65
+					var jitter1=0.0 if band==0 else sin(float(section+1)*0.52+float(band)*1.72)*0.65
+					var next0=0.0 if band==3 else sin(float(section)*0.52+float(band+1)*1.72)*0.65
+					var next1=0.0 if band==3 else sin(float(section+1)*0.52+float(band+1)*1.72)*0.65
+					var x0=side*(float(edges[band])+jitter0)
+					var x1=side*(float(edges[band+1])+next0)
+					var x2=side*(float(edges[band])+jitter1)
+					var x3=side*(float(edges[band+1])+next1)
+					var shade=0.94+0.055*sin(float(section)*1.33+float(band)*1.76)
+					var tint=bands[band]*shade
+					var a=Vector3(x0,0.015,z0)
+					var b=Vector3(x1,0.015,z0)
+					var c=Vector3(x2,0.015,z1)
+					var d=Vector3(x3,0.015,z1)
+					if side>0.0:
+						add_verge_triangle_420(surface,a,b,c,tint)
+						add_verge_triangle_420(surface,b,d,c,tint)
+					else:
+						add_verge_triangle_420(surface,a,c,b,tint)
+						add_verge_triangle_420(surface,b,c,d,tint)
+			var draw=MeshInstance3D.new()
+			draw.name="Verge52_"+str(chunk)+"_"+str(side)
+			draw.mesh=surface.commit()
+			draw.material_override=mat
+			draw.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			draw.visibility_range_end=680.0
+			add_child(draw)
 
 
 func add_verge_triangle_420(surface:SurfaceTool,a:Vector3,b:Vector3,c:Vector3,color_value:Color)->void:
@@ -3732,7 +3774,14 @@ void fragment(){
     vec2 p=wposition.xz;
     vec3 field=texture(grass_tex,p*0.076).rgb;
     float distance_tint=clamp(abs(p.x)/430.0,0.0,1.0);
-    ALBEDO=mix(field*vec3(0.95,1.05,0.89),vec3(0.27,0.32,0.18),distance_tint*0.32);
+    float plot=mod(floor((abs(p.x)+9.0)/44.0)+floor(abs(p.y)/115.0),4.0);
+    vec3 barley=vec3(0.48,0.46,0.26);
+    vec3 meadow=vec3(0.29,0.41,0.23);
+    vec3 fields=mix(meadow,barley,step(1.0,plot)*0.68);
+    float row_marks=0.94+0.06*sin(p.x*1.18+p.y*0.015);
+    float farm_amount=smoothstep(44.0,72.0,abs(p.x))*0.55;
+    vec3 base=mix(field*vec3(0.95,1.05,0.89),fields*row_marks,farm_amount);
+    ALBEDO=mix(base,vec3(0.27,0.32,0.18),distance_tint*0.25);
     ROUGHNESS=1.0;
 }
 """
@@ -3809,3 +3858,310 @@ func create_cloud_layer_500()->void:
 		sprite.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		sprite.visibility_range_end=750.0
 		add_child(sprite)
+
+
+# -----------------------------------------------------------------------------
+# AUTO BOSS 60.0 -- Landscape Depth / Roadcraft
+# Added in separate, cheap batches. No new collision bodies or save changes.
+# -----------------------------------------------------------------------------
+func create_visual_world_600()->void:
+    create_near_forest_600()
+    create_meadow_clusters_600()
+    create_road_shoulders_600()
+    create_guardrail_detail_600()
+    print("AUTO BOSS 60.0: ",forest_near_count_600," solid roadside trees with instanced geometry")
+
+
+func tree_mesh_600(species:int)->ArrayMesh:
+    # Foliage has several asymmetrical lobes; tree is not a sphere/card.
+    var result=ArrayMesh.new()
+    var bark=SurfaceTool.new()
+    bark.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var trunk_height=0.62 if species==0 else 0.47
+    var base_radius=0.027 if species==0 else 0.039
+    for section in range(2):
+        var y0=float(section)*trunk_height*0.5
+        var y1=float(section+1)*trunk_height*0.5
+        var r0=base_radius*(1.0-float(section)*0.20)
+        var r1=base_radius*(0.80-float(section)*0.20)
+        for a in range(9):
+            var t0=float(a)*TAU/9.0
+            var t1=float(a+1)*TAU/9.0
+            var p0=Vector3(cos(t0)*r0,y0,sin(t0)*r0)
+            var p1=Vector3(cos(t1)*r0,y0,sin(t1)*r0)
+            var p2=Vector3(cos(t0)*r1,y1,sin(t0)*r1)
+            var p3=Vector3(cos(t1)*r1,y1,sin(t1)*r1)
+            tree_triangle_600(bark,p0,p2,p1,Color.WHITE,4.0)
+            tree_triangle_600(bark,p1,p2,p3,Color.WHITE,4.0)
+    bark.generate_normals()
+    bark.set_material(bark_material_600())
+    bark.commit(result)
+    var leaves=SurfaceTool.new()
+    leaves.begin(Mesh.PRIMITIVE_TRIANGLES)
+    if species==0:
+        # Four unequal leafy clumps, a natural rounded deciduous outline.
+        for lobe in range(5):
+            var angle=float(lobe)*2.39996
+            var center=Vector3(cos(angle)*0.125,0.73+0.04*sin(float(lobe)*3.0),sin(angle)*0.110)
+            if lobe==4:
+                center=Vector3(0,0.82,0)
+            tree_lobe_600(leaves,center,Vector3(0.265,0.235,0.238),lobe)
+    else:
+        # Broken fir silhouette with separate overlapping evergreen tiers.
+        for tier in range(4):
+            var level=float(tier)
+            var bottom=0.25+level*0.155
+            var radius=0.34-level*0.077
+            var height=0.34-level*0.025
+            var tip=Vector3(0.015*sin(level*4.0),bottom+height,0.014*cos(level*3.0))
+            for side in range(11):
+                var a=float(side)*TAU/11.0
+                var b=float(side+1)*TAU/11.0
+                var ra=radius*(0.88+0.12*sin(float(side)*6.1+level*7.0))
+                var rb=radius*(0.88+0.12*sin(float(side+1)*6.1+level*7.0))
+                var p=Vector3(cos(a)*ra,bottom,sin(a)*ra)
+                var q=Vector3(cos(b)*rb,bottom,sin(b)*rb)
+                var tint=Color(0.78+0.07*sin(float(side)),0.89+0.04*sin(level+float(side)),0.86)
+                tree_triangle_600(leaves,p,tip,q,tint,3.0)
+    leaves.generate_normals()
+    leaves.set_material(canopy_material_600())
+    leaves.commit(result)
+    return result
+
+
+func tree_triangle_600(surface:SurfaceTool,a:Vector3,b:Vector3,c:Vector3,tint:Color,uv_scale:float)->void:
+    for vertex in [a,b,c]:
+        surface.set_color(tint)
+        surface.set_uv(Vector2(vertex.x*uv_scale+vertex.z*uv_scale*0.27,vertex.y*uv_scale+vertex.z*uv_scale))
+        surface.add_vertex(vertex)
+
+
+func tree_lobe_600(surface:SurfaceTool,center:Vector3,radius:Vector3,seed:int)->void:
+    var levels=[-0.92,-0.40,0.26,0.79,1.0]
+    var radii=[0.12,0.84,1.0,0.58,0.05]
+    for y in range(4):
+        for j in range(10):
+            var a=float(j)*TAU/10.0
+            var b=float(j+1)*TAU/10.0
+            var wobble_a=1.0+0.10*sin(float(j)*2.9+float(seed)*2.7)
+            var wobble_b=1.0+0.10*sin(float(j+1)*2.9+float(seed)*2.7)
+            var p=Vector3(center.x+cos(a)*radius.x*radii[y]*wobble_a,center.y+radius.y*levels[y],center.z+sin(a)*radius.z*radii[y]*wobble_a)
+            var q=Vector3(center.x+cos(b)*radius.x*radii[y]*wobble_b,center.y+radius.y*levels[y],center.z+sin(b)*radius.z*radii[y]*wobble_b)
+            var r=Vector3(center.x+cos(a)*radius.x*radii[y+1]*wobble_a,center.y+radius.y*levels[y+1],center.z+sin(a)*radius.z*radii[y+1]*wobble_a)
+            var s=Vector3(center.x+cos(b)*radius.x*radii[y+1]*wobble_b,center.y+radius.y*levels[y+1],center.z+sin(b)*radius.z*radii[y+1]*wobble_b)
+            var tint=Color(0.88+0.06*sin(float(j)+float(seed)),0.94,0.83+0.07*cos(float(j)))
+            tree_triangle_600(surface,p,r,q,tint,2.6)
+            tree_triangle_600(surface,q,r,s,tint,2.6)
+
+
+func bark_material_600()->StandardMaterial3D:
+    if canopy_bark_material_600==null:
+        canopy_bark_material_600=StandardMaterial3D.new()
+        canopy_bark_material_600.albedo_texture=load("res://assets/graphics60/bark_60.png")
+        canopy_bark_material_600.roughness=1.0
+        canopy_bark_material_600.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    return canopy_bark_material_600
+
+
+func canopy_material_600()->StandardMaterial3D:
+    if canopy_leaf_material_600==null:
+        canopy_leaf_material_600=StandardMaterial3D.new()
+        canopy_leaf_material_600.albedo_texture=load("res://assets/graphics60/canopy_60.png")
+        canopy_leaf_material_600.roughness=0.98
+        canopy_leaf_material_600.vertex_color_use_as_albedo=true
+        canopy_leaf_material_600.cull_mode=BaseMaterial3D.CULL_DISABLED
+        canopy_leaf_material_600.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    return canopy_leaf_material_600
+
+
+func create_near_forest_600()->void:
+    # Solid geometry only at roadside; distant woodland retains 50.0 billboards.
+    var rng=RandomNumberGenerator.new()
+    rng.seed=600300
+    var oak_mesh=tree_mesh_600(0)
+    var fir_mesh=tree_mesh_600(1)
+    for chunk in range(12):
+        var grouped=[[],[]]
+        var tones=[[],[]]
+        for side in [-1.0,1.0]:
+            for i in range(15):
+                var z=-float(chunk)*250.0-rng.randf_range(13.0,238.0)
+                var x=side*rng.randf_range(28.0,62.0)
+                if abs(x)<38.5 and is_service_clear_zone_200(z):
+                    continue
+                var species=0 if rng.randf()<0.57 else 1
+                var height=rng.randf_range(5.0,10.5)
+                var y=terrain_height_500(x,z) if abs(x)>=39.0 else 0.02
+                var basis=Basis(Vector3.UP,rng.randf_range(-PI,PI)).scaled(Vector3(height,height,height))
+                grouped[species].append(Transform3D(basis,Vector3(x,y,z)))
+                var shade=rng.randf_range(0.86,1.10)
+                tones[species].append(Color(shade,shade,shade,1.0))
+                forest_near_count_600+=1
+        for species in range(2):
+            if grouped[species].is_empty():
+                continue
+            var mm=MultiMesh.new()
+            mm.transform_format=MultiMesh.TRANSFORM_3D
+            mm.use_colors=true
+            mm.mesh=oak_mesh if species==0 else fir_mesh
+            mm.instance_count=grouped[species].size()
+            for i in range(grouped[species].size()):
+                mm.set_instance_transform(i,grouped[species][i])
+                mm.set_instance_color(i,tones[species][i])
+            var forest=MultiMeshInstance3D.new()
+            forest.name="RealForest60_"+str(chunk)+"_"+str(species)
+            forest.multimesh=mm
+            forest.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            forest.visibility_range_end=300.0
+            add_child(forest)
+
+
+func create_meadow_clusters_600()->void:
+    var flower_material=StandardMaterial3D.new()
+    flower_material.albedo_texture=load("res://assets/graphics60/meadow_flowers_60.png")
+    flower_material.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+    flower_material.alpha_scissor_threshold=0.40
+    flower_material.cull_mode=BaseMaterial3D.CULL_DISABLED
+    flower_material.roughness=1.0
+    flower_material.vertex_color_use_as_albedo=true
+    flower_material.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    var mesh=tree_cross_mesh_500()
+    var rng=RandomNumberGenerator.new()
+    rng.seed=600888
+    for chunk in range(12):
+        var transforms=[]
+        for side in [-1.0,1.0]:
+            for i in range(30):
+                var z=-float(chunk)*250.0-rng.randf_range(8.0,242.0)
+                var x=side*rng.randf_range(13.0,37.0)
+                if is_service_clear_zone_200(z) and abs(x)<29.0:
+                    continue
+                var height=rng.randf_range(0.24,0.68)
+                var width=rng.randf_range(0.40,0.90)
+                var basis=Basis(Vector3.UP,rng.randf_range(-PI,PI)).scaled(Vector3(width,height,width))
+                transforms.append(Transform3D(basis,Vector3(x,0.025,z)))
+        if transforms.is_empty():
+            continue
+        var mm=MultiMesh.new()
+        mm.transform_format=MultiMesh.TRANSFORM_3D
+        mm.mesh=mesh
+        mm.instance_count=transforms.size()
+        for i in range(transforms.size()):
+            mm.set_instance_transform(i,transforms[i])
+        var flowers=MultiMeshInstance3D.new()
+        flowers.name="Meadow60_"+str(chunk)
+        flowers.multimesh=mm
+        flowers.material_override=flower_material
+        flowers.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        flowers.visibility_range_end=170.0
+        add_child(flowers)
+
+
+func create_road_shoulders_600()->void:
+    # 250 m sections cull efficiently unlike another giant 3 km mesh.
+    var sh=Shader.new()
+    sh.code="""shader_type spatial;
+render_mode diffuse_burley, specular_schlick_ggx;
+uniform sampler2D asphalt_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
+varying vec3 wpos;
+void vertex() {wpos=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;}
+void fragment(){
+    vec3 gravel=texture(asphalt_tex,wpos.xz*0.19).rgb;
+    float groove=1.0-smoothstep(0.0,0.10,abs(fract(wpos.z*0.63)-0.5));
+    ALBEDO=mix(vec3(0.25,0.255,0.26),gravel,0.23)*(1.0-groove*0.17);
+    ROUGHNESS=0.94; SPECULAR=0.16;
+}
+"""
+    var mat=ShaderMaterial.new()
+    mat.shader=sh
+    mat.set_shader_parameter("asphalt_tex",load("res://assets/graphics50/asphalt_albedo.png"))
+    var road_piece=BoxMesh.new()
+    road_piece.size=Vector3(1.30,0.07,250.0)
+    for side in [-1.0,1.0]:
+        for i in range(12):
+            var road=MeshInstance3D.new()
+            road.name="SafetyShoulder60_"+str(i)+"_"+str(side)
+            road.mesh=road_piece
+            road.position=Vector3(side*9.87,0.027,-125.0-float(i)*250.0)
+            road.material_override=mat
+            road.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            road.visibility_range_end=520.0
+            add_child(road)
+
+
+func create_guardrail_detail_600()->void:
+    # Additional upper steel beam and regular bolt-like post rhythm.
+    var steel=StandardMaterial3D.new()
+    steel.albedo_color=Color(0.59,0.65,0.69)
+    steel.metallic=0.57
+    steel.roughness=0.48
+    var rail_mesh=BoxMesh.new()
+    rail_mesh.size=Vector3(0.14,0.17,250.0)
+    for side in [-1.0,1.0]:
+        for chunk in range(12):
+            var rail=MeshInstance3D.new()
+            rail.name="GalvanizedGuardrail60_"+str(chunk)+"_"+str(side)
+            rail.mesh=rail_mesh
+            rail.position=Vector3(side*9.23,1.005,-float(chunk)*250.0-125.0)
+            rail.material_override=steel
+            rail.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            rail.visibility_range_end=470.0
+            add_child(rail)
+    # Minor near-camera detail as GPU instances (not 300 separate posts).
+    var post_mesh=BoxMesh.new()
+    post_mesh.size=Vector3(0.12,0.86,0.13)
+    for chunk in range(12):
+        var transforms=[]
+        for side in [-1.0,1.0]:
+            for i in range(16):
+                var z=-float(chunk)*250.0-float(i)*15.6-4.0
+                transforms.append(Transform3D(Basis(),Vector3(side*9.23,0.43,z)))
+        var mm=MultiMesh.new()
+        mm.mesh=post_mesh
+        mm.transform_format=MultiMesh.TRANSFORM_3D
+        mm.instance_count=transforms.size()
+        for i in range(transforms.size()):
+            mm.set_instance_transform(i,transforms[i])
+        var posts=MultiMeshInstance3D.new()
+        posts.name="GuardrailPosts60_"+str(chunk)
+        posts.multimesh=mm
+        posts.material_override=steel
+        posts.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        posts.visibility_range_end=300.0
+        add_child(posts)
+
+
+func add_house_details_600(root:Node3D,x:float,z_shift:float,h:float,width:float,depth:float,variant:int)->void:
+    # Architectural accents make the existing facade textures less box-like.
+    var slate=Color(0.27,0.29,0.29)
+    var stone=Color(0.55,0.51,0.45)
+    station_box(root,Vector3(0.32,0.83,0.38),Vector3(x-width*0.25,h+0.90,z_shift+0.25),Color(0.49,0.31,0.25))
+    station_box(root,Vector3(0.53,0.11,0.52),Vector3(x-width*0.25,h+1.36,z_shift+0.25),stone)
+    station_box(root,Vector3(1.1,2.05,0.06),Vector3(x+0.85,1.03,z_shift-depth*0.5-0.05),slate)
+    station_box(root,Vector3(1.35,0.18,0.66),Vector3(x+0.85,2.20,z_shift-depth*0.5-0.27),stone)
+    if variant!=1:
+        station_box(root,Vector3(1.8,0.12,0.52),Vector3(x-1.0,h*0.54,z_shift-depth*0.5-0.24),Color(0.47,0.47,0.44))
+
+
+func update_sky_mood_600(delta:float)->void:
+    # Sky shaders are comparatively expensive to re-upload: <= once per second.
+    sky_mood_accumulator_600+=delta
+    if sky_mood_accumulator_600<1.0 or world_env==null:
+        return
+    sky_mood_accumulator_600=0.0
+    var twilight=clamp((0.18-day_clock)/0.12,0.0,1.0)
+    twilight=max(twilight,clamp((day_clock-0.66)/0.14,0.0,1.0))
+    var rain=weather_state=="Regen"
+    var night=day_clock>0.78 or day_clock<0.10
+    if sun_light!=null:
+        sun_light.light_color=Color(1.0,0.93,0.83).lerp(Color(1.0,0.60,0.35),twilight*0.85)
+    if world_env.sky!=null and world_env.sky.sky_material is ProceduralSkyMaterial:
+        var sky=world_env.sky.sky_material as ProceduralSkyMaterial
+        sky.sky_horizon_color=Color(0.52,0.72,0.90).lerp(Color(0.91,0.48,0.27),twilight*0.65)
+        sky.sky_top_color=Color(0.055,0.20,0.40).lerp(Color(0.12,0.17,0.34),twilight*0.40)
+    if night:
+        world_env.fog_light_color=Color(0.16,0.22,0.32)
+    elif rain:
+        world_env.fog_light_color=Color(0.37,0.45,0.51)
+    else:
+        world_env.fog_light_color=Color(0.64,0.75,0.87).lerp(Color(0.87,0.52,0.31),twilight*0.75)
