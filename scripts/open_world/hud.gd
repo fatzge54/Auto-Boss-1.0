@@ -86,7 +86,7 @@ func create_driving_ui()->void:
 	pickup_button=button("FAHRZEUG ÜBERNEHMEN")
 	pickup_button.anchor_top=1.0;pickup_button.anchor_bottom=1.0
 	pickup_button.position=Vector2(430,-246);pickup_button.size=Vector2(355,64)
-	pickup_button.pressed.connect(func():game.interact());driving_hud.add_child(pickup_button)
+	pickup_button.pressed.connect(func():game.quick_action());driving_hud.add_child(pickup_button)
 	pickup_button.visible=false
 	driving_hud.visible=false
 
@@ -121,8 +121,9 @@ func _process(delta:float)->void:
 		map_view.has_target=game.career.active_stage!=""
 		map_view.target=game.career.target()
 		map_view.track=game.route
-		pickup_button.visible=game.can_interact()
-		if game.career.active_stage=="pickup":pickup_button.text="FAHRZEUG ÜBERNEHMEN"
+		pickup_button.visible=game.career.active_stage=="" or game.can_interact()
+		if game.career.active_stage=="":pickup_button.text="▶ ERSTEN AUFTRAG STARTEN"
+		elif game.career.active_stage=="pickup":pickup_button.text="FAHRZEUG ÜBERNEHMEN"
 		elif game.career.active_stage=="delivery":pickup_button.text="FAHRZEUG ABGEBEN"
 
 func show_menu(page:String)->void:
@@ -141,7 +142,7 @@ func show_menu(page:String)->void:
 	var column:=VBoxContainer.new();column.custom_minimum_size=Vector2(880,620)
 	column.add_theme_constant_override("separation",9)
 	scroll.add_child(column)
-	var title:=label("AUTO BOSS 70.0  •  GERMAN ROADS",36)
+	var title:=label("AUTO BOSS 71.0  •  GERMAN ROADS",36)
 	title.add_theme_color_override("font_color",Color(0.36,0.83,1.0))
 	column.add_child(title)
 	column.add_child(label("OPEN WORLD · LOGISTIK · TRANSPORTKARRIERE",18))
@@ -150,6 +151,10 @@ func show_menu(page:String)->void:
 		"start":
 			column.add_child(label("Dein Unternehmen: "+game.career.rank(),24))
 			column.add_child(label("Konto: %d €   •   Ruf: %d   •   Aufträge: %d" % [game.career.money,game.career.reputation,game.career.jobs_completed],19))
+			if game.career.active_stage=="":
+				add_action(column,"★  ERSTEN TRANSPORT SOFORT STARTEN",func():game.quick_action())
+			else:
+				add_action(column,"★  AKTIVEN AUFTRAG FORTSETZEN",func():game.resume_driving())
 			add_action(column,"▶  FREIE FAHRT / SPIEL FORTSETZEN",func():game.resume_driving())
 			add_action(column,"▣  AUFTRAGSBÖRSE",func():show_menu("jobs"))
 			add_action(column,"▥  FIRMENZENTRALE & TUNING",func():show_menu("company"))
@@ -207,6 +212,7 @@ func show_menu(page:String)->void:
 			add_action(column,"← ZURÜCK",func():show_menu("start"))
 		"help":
 			column.add_child(label("HANDY: Links/rechts unten lenken · GAS/BREMSE rechts gedrückt halten.",20))
+			column.add_child(label("Neu: Abseits befestigter Straßen ist das Fahrzeug deutlich langsamer.",18))
 			column.add_child(label("PC: W/↑ Gas, S/↓ Bremsen/Rückwärts, A/D oder ←/→ lenken.",20))
 			column.add_child(label("F: Übernahme/Abgabe · C: Kamera · M: Karte · ESC: Menü.",20))
 			column.add_child(label("Gelbe Zielmarkierung finden, anhalten und ÜBERNEHMEN/ABGEBEN drücken.",19))

@@ -34,6 +34,10 @@ var world_acc:float=0.0
 var camera_mode:int=0
 var quality:int=0
 var touch:Dictionary={"gas":false,"brake":false,"left":false,"right":false}
+var recovered_fuel:float=100.0
+var recovered_damage:float=0.0
+var recovered_odometer:float=0.0
+
 
 func _ready()->void:
 	create_environment()
@@ -44,6 +48,9 @@ func _ready()->void:
 	create_headlights()
 	load_position()
 	if career.active_stage=="delivery": vehicle.configure(int(career.active_job["car"]))
+	vehicle.fuel=recovered_fuel
+	vehicle.damage=recovered_damage
+	vehicle.odometer=recovered_odometer
 	vehicle.position.y=Data.height_at(vehicle.position.x,vehicle.position.z)
 	world.stream_radius=1 if quality==0 else 2
 	world.detail_level=quality
@@ -178,6 +185,7 @@ func update_camera(delta:float)->void:
 	else:
 		wanted=vehicle.position+f*1.0+Vector3(0,1.65,0)
 	cam.global_position=cam.global_position.lerp(wanted,clampf(delta*6.5,0.0,1.0))
+	cam.fov=lerpf(cam.fov,69.0+minf(absf(vehicle.speed)*0.09,7.0),clampf(delta*2.3,0.0,1.0))
 	cam.look_at(vehicle.position+f*19.0+Vector3(0,1.35,0),Vector3.UP)
 
 func toggle_camera()->void:
@@ -204,6 +212,17 @@ func pause_game()->void:
 
 func resume_driving()->void:
 	state="driving";hud.show_driving()
+
+func quick_action()->void:
+	if career.active_stage!="":
+		interact()
+		return
+	if career.contracts.size()>0:
+		for i in range(career.contracts.size()):
+			if career.reputation>=int(career.contracts[i]["required_rep"]):
+				accept_contract(i)
+				return
+	hud.notify("Noch kein Transportvertrag freigeschaltet.")
 
 func accept_contract(index:int)->void:
 	if career.accept(index):
@@ -278,13 +297,14 @@ func next_instruction()->String:
 	return ("Links abbiegen" if cross<0.0 else "Rechts abbiegen")+" • %.0f m" % dist
 
 func navigation_text()->String:
-	if career.active_stage=="":return "Kein Auftrag aktiv – MENÜ → AUFTRAGSBÖRSE"
+	if career.active_stage=="":return "FREIE FAHRT  •  Ersten Transport direkt unten starten"+("\nAchtung: Wiese / Feld – wenig Reifenhaftung!" if vehicle.offroad else "")
 	var meters:float=remaining_meters()
 	var minutes:int=ceili(meters/maxf(13.0,absf(vehicle.speed))*1.0/60.0)
 	var warning:String="  •  AM ZIEL ANHALTEN" if can_interact() else ""
 	var deadline:int=int(career.active_job.get("deadline_minutes",0))
 	var time_left:String="  •  Express: %d min" % maxi(0,deadline-ceili(career.job_timer/60.0)) if deadline>0 and career.active_stage=="delivery" else ""
-	return "%s\n%.1f km  •  ETA %d min%s\n%s%s" % [career.destination_name(),meters*0.001,minutes,warning,next_instruction(),time_left]
+	var surface_warning:String="  •  GELÄNDE" if vehicle.offroad else ""
+	return "%s\n%.1f km  •  ETA %d min%s\n%s%s%s" % [career.destination_name(),meters*0.001,minutes,warning,next_instruction(),time_left,surface_warning]
 
 func clock_text()->String:
 	return "%02d:%02d" % [int(clock),int((clock-float(int(clock)))*60.0)]
@@ -312,6 +332,9 @@ func save_progress()->void:
 	cfg.set_value("world","clock",clock)
 	cfg.set_value("world","weather",weather)
 	cfg.set_value("world","quality",quality)
+	cfg.set_value("vehicle","fuel",vehicle.fuel)
+	cfg.set_value("vehicle","damage",vehicle.damage)
+	cfg.set_value("vehicle","odometer",vehicle.odometer)
 	cfg.save(POSITION_FILE)
 
 func load_position()->void:
@@ -323,6 +346,9 @@ func load_position()->void:
 	clock=float(cfg.get_value("world","clock",8.25))
 	weather=str(cfg.get_value("world","weather","Klar"))
 	quality=int(cfg.get_value("world","quality",0))
+	recovered_fuel=clampf(float(cfg.get_value("vehicle","fuel",100.0)),0.0,100.0)
+	recovered_damage=clampf(float(cfg.get_value("vehicle","damage",0.0)),0.0,100.0)
+	recovered_odometer=maxf(0.0,float(cfg.get_value("vehicle","odometer",0.0)))
 
 func _unhandled_key_input(event:InputEvent)->void:
 	if not (event is InputEventKey):return

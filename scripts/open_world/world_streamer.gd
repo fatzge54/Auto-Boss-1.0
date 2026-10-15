@@ -224,6 +224,7 @@ func spawn_chunk(key:Vector2i) -> void:
 	make_road_environment(root,p,terrain_type,rng)
 	make_details(root,p,terrain_type,rng)
 	make_landmark(root,p)
+	make_direction_sign(root,p,terrain_type)
 
 func make_terrain(root:Node3D,center:Vector2) -> void:
 	var st:=SurfaceTool.new()
@@ -479,9 +480,24 @@ func make_details(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerat
 	var tree_count:int=20 if kind=="city" else (12 if kind=="industry" else (36 if kind=="village" else 75))
 	if detail_level==0:tree_count=roundi(float(tree_count)*0.65)
 	if detail_level==2:tree_count=roundi(float(tree_count)*1.20)
+	# Regular street-front lots make a recognisable German block structure.
+	# The old completely random placement left vast, unconvincing blank gaps.
+	var street_lots:Array[Vector2]=[]
+	if kind=="city" or kind=="village":
+		for side in [-1.0,1.0]:
+			for slot in [-161.0,-115.0,-69.0,-23.0,23.0,69.0,115.0,161.0]:
+				street_lots.append(Vector2(side*44.0,slot))
+				street_lots.append(Vector2(slot,side*44.0))
+	if kind=="industry":
+		for side in [-1.0,1.0]:
+			for slot in [-143.0,-63.0,63.0,143.0]:
+				street_lots.append(Vector2(side*65.0,slot))
 	for i in range(building_count):
-		var x:float=rng.randf_range(-187,187)
-		var z:float=rng.randf_range(-187,187)
+		var x:float=rng.randf_range(-187.0,187.0)
+		var z:float=rng.randf_range(-187.0,187.0)
+		if i<street_lots.size():
+			x=street_lots[i].x+rng.randf_range(-2.0,2.0)
+			z=street_lots[i].y+rng.randf_range(-2.0,2.0)
 		var pos:=Vector2(center.x+x,center.y+z)
 		if Data.road_distance(pos)<33.0:continue
 		var wide:float=rng.randf_range(12.0,24.0) if kind=="industry" else rng.randf_range(9.0,16.0)
@@ -519,9 +535,18 @@ func make_details(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerat
 		if kind=="industry":
 			loading_doors.append(Transform3D(Basis.IDENTITY.scaled(Vector3(wide*0.65,4.3,0.19)),Vector3(x,y+2.17,z-dep*0.5-0.13)))
 			vent_instances.append(Transform3D(Basis.IDENTITY.scaled(Vector3(2.9,0.35,2.3)),Vector3(x+wide*0.2,y+h+0.74,z)))
+	var tree_lots:Array[Vector2]=[]
+	if kind=="city" or kind=="village":
+		for side in [-1.0,1.0]:
+			for slot in [-173.0,-127.0,-81.0,-35.0,35.0,81.0,127.0,173.0]:
+				tree_lots.append(Vector2(side*26.0,slot))
+				tree_lots.append(Vector2(slot,side*26.0))
 	for i in range(tree_count):
-		var x:float=rng.randf_range(-198,198)
-		var z:float=rng.randf_range(-198,198)
+		var x:float=rng.randf_range(-198.0,198.0)
+		var z:float=rng.randf_range(-198.0,198.0)
+		if i<tree_lots.size():
+			x=tree_lots[i].x
+			z=tree_lots[i].y
 		var pos:=Vector2(center.x+x,center.y+z)
 		if Data.road_distance(pos)<19.0: continue
 		var h:float=rng.randf_range(5.0,13.0)
@@ -630,6 +655,33 @@ func make_landmark(root:Node3D,center:Vector2)->void:
 	board.position=Vector3(0,79.0 if kind=="city" else 37.0,0)
 	board.modulate=Color(0.92,0.94,0.98)
 	landmark.add_child(board)
+
+func make_direction_sign(root:Node3D,center:Vector2,kind:String)->void:
+	# Small German-inspired wayfinding sign, placed at a road verge.
+	# Only a subset of sectors gets one to preserve draw-call budget.
+	var sx:int=roundi(center.x/Data.CHUNK_SIZE)
+	var sz:int=roundi(center.y/Data.CHUNK_SIZE)
+	if posmod(sx+sz,4)!=0:return
+	var location:=Vector2(center.x+23.0,center.y-73.0)
+	var base_y:float=Data.height_at(location.x,location.y)
+	var sign_root:=Node3D.new()
+	sign_root.position=Vector3(23.0,base_y,-73.0)
+	root.add_child(sign_root)
+	var support:=MeshInstance3D.new()
+	var support_mesh:=BoxMesh.new();support_mesh.size=Vector3(0.14,3.1,0.14)
+	support.mesh=support_mesh;support.position=Vector3(-1.0,1.55,0.0)
+	support.material_override=metal_dark_mat;sign_root.add_child(support)
+	var plate:=MeshInstance3D.new()
+	var plate_mesh:=BoxMesh.new();plate_mesh.size=Vector3(3.25,1.15,0.12)
+	plate.mesh=plate_mesh;plate.position=Vector3(0.0,3.0,0.0)
+	plate.material_override=road_sign_mat;sign_root.add_child(plate)
+	var name_label:=Label3D.new()
+	name_label.text=str(Data.nearest_city(location)["name"]).to_upper()
+	name_label.font_size=60
+	name_label.pixel_size=0.006
+	name_label.modulate=Color(0.96,0.98,1.0)
+	name_label.position=Vector3(0.0,3.05,0.079)
+	sign_root.add_child(name_label)
 
 func hit_static(world_position:Vector3)->bool:
 	var key:=Vector2i(roundi(world_position.x/Data.CHUNK_SIZE),roundi(world_position.z/Data.CHUNK_SIZE))

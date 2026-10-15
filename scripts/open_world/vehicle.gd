@@ -19,6 +19,9 @@ var body_root:Node3D
 var engine_sound:AudioStreamPlayer3D
 var engine_mod:float=1.0
 var brake_mod:float=1.0
+var offroad:bool=false
+var surface_grip:float=1.0
+
 
 func _ready()->void:
 	body_root=Node3D.new();body_root.name="Fahrzeugkarosserie";add_child(body_root)
@@ -212,8 +215,20 @@ func drive(delta:float,throttle:float,braking:float,steering:float,weather_grip:
 	var accel:float=float(info["acceleration"])*engine_mod
 	var brake_force:float=float(info["brakes"])*brake_mod*weather_grip
 	var damage_penalty:float=maxf(0.58,1.0-damage*0.003)
+	# Grass is drivable, but cannot be used as a 205-km/h shortcut.
+	var road_gap:float=Data.road_distance(Vector2(position.x,position.z))
+	var city_road:bool=Data.city_type(Vector2(position.x,position.z))!="rural"
+	offroad=road_gap>(17.0 if city_road else 15.5)
+	surface_grip=0.64 if offroad else 1.0
+	var surface_limit:float=23.0 if offroad else max_speed
+	var allowed:float=minf(max_speed*damage_penalty,surface_limit)
 	if throttle>0.05 and fuel>0.0:
-		speed=move_toward(speed,max_speed*damage_penalty,accel*throttle*delta*weather_grip)
+		# Reduced acceleration at high speed makes the 0–100 and 100–200 phases distinct.
+		var speed_ratio:float=clampf(absf(speed)/maxf(allowed,1.0),0.0,1.0)
+		var power_curve:float=0.52*(1.0-0.74*speed_ratio)
+		var drive_accel:float=accel*power_curve*weather_grip*surface_grip
+		if absf(speed)<allowed:
+			speed=move_toward(speed,allowed,drive_accel*throttle*delta)
 	elif braking>0.05:
 		if speed>0.7:
 			speed=move_toward(speed,0.0,brake_force*braking*delta)
@@ -221,9 +236,11 @@ func drive(delta:float,throttle:float,braking:float,steering:float,weather_grip:
 			speed=move_toward(speed,-6.0,accel*0.43*delta)
 	else:
 		speed=move_toward(speed,0.0,(1.4+absf(speed)*0.018+absf(speed)*absf(speed)*0.0009)*delta)
+	if offroad and absf(speed)>surface_limit:
+		speed=move_toward(speed,0.0,(4.0+absf(speed)*0.05)*delta)
 	# Steering responds to speed, grip and vehicle length.
 	var turn_factor:float=clampf(absf(speed)/7.0,0.0,1.0)
-	var steer_rate:float=float(info["steering"])*weather_grip*turn_factor/(1.0+absf(speed)*0.018)
+	var steer_rate:float=float(info["steering"])*weather_grip*surface_grip*turn_factor/(1.0+absf(speed)*0.018)
 	yaw+=steering*steer_rate*delta*(1.0 if speed>=0.0 else -1.0)
 	rotation.y=yaw
 	var forward:=Vector3(-sin(yaw),0.0,-cos(yaw))
@@ -233,7 +250,7 @@ func drive(delta:float,throttle:float,braking:float,steering:float,weather_grip:
 	position.y=Data.height_at(position.x,position.z)+0.02
 	var drive_m:float=absf(speed)*delta
 	odometer+=drive_m*0.001
-	fuel=maxf(0.0,fuel-drive_m*0.0012*float(info["usage"]))
+	fuel=maxf(0.0,fuel-drive_m*0.0012*float(info["usage"])*(1.22 if offroad else 1.0))
 	if engine_sound!=null:
 		engine_sound.pitch_scale=clampf(0.8+absf(speed)*0.022,0.7,2.0)
 		engine_sound.volume_db=-14.0 if absf(speed)<1.0 else -7.0
