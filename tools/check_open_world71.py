@@ -4,7 +4,7 @@ import re
 ROOT=Path(__file__).resolve().parents[1]
 DIR=ROOT/'scripts'/'open_world'
 scripts={p.name:p.read_text(encoding='utf8') for p in DIR.glob('*.gd')}
-expected={'game.gd','world_data.gd','world_streamer.gd','vehicle.gd','career.gd','traffic.gd','hud.gd','minimap.gd','world_map.gd','rain_fx.gd'}
+expected={'game.gd','world_data.gd','world_streamer.gd','vehicle.gd','career.gd','traffic.gd','hud.gd','minimap.gd','world_map.gd','rain_fx.gd','city_quarter.gd'}
 assert set(scripts)==expected,(expected-set(scripts),set(scripts)-expected)
 assert (ROOT/'project.godot').is_file()
 assert (ROOT/'main.tscn').is_file()
@@ -49,7 +49,7 @@ assert 'const CHUNK_SIZE: float = 400.0' in scripts['world_data.gd']
 assert 'for i in range(32)' in scripts['career.gd']
 assert (ROOT/'assets/open_world/engine_loop.wav').is_file()
 assert '.github/workflows/android-build.yml' in [str(p.relative_to(ROOT)) for p in ROOT.rglob('android-build.yml')]
-print('PASS: 10 scripts, resources, delimiters, scene references, extended world features, workflows.')
+print('PASS: 11 scripts, resources, delimiters, scene references, extended world features, workflows.')
 print('LIMITATION: The scripts have NOT been parsed/executed in the Godot runtime here.')
 
 for filename,features in {
@@ -95,3 +95,13 @@ for needle in ["var has_signal:bool", "var relative_speed:float=(player_velocity
     assert needle in traffic, ("71.4 traffic",needle)
 assert "AUTO BOSS 71.4" in scripts["hud.gd"]
 print("PASS: 71.4 regional props, building separation, traffic light and collision consistency.")
+
+# 71.8: modular Lindenfurt district is sector-owned and shares collision rectangles.
+city=scripts["city_quarter.gd"]
+assert 'func build(world_center:Vector2,quality:int)->Array[Rect2]' in city
+assert '_emit_batches()' in city and 'MultiMeshInstance3D.new()' in city
+assert 'Data.pavement_clearance(center_p)' in city
+assert 'building_colliders[Vector2i(' in scripts['world_streamer.gd']
+assert 'quarter.build(center,detail_level)' in scripts['world_streamer.gd']
+assert 'if kind=="city" and absf(center.x)<=400.0' in scripts['world_streamer.gd']
+print("PASS: 71.8 streamed modular Lindenfurt, texture resources and collider registration.")
