@@ -50,6 +50,28 @@ static func road_distance(p:Vector2) -> float:
 		dz=min(dz,abs(dz-100.0))
 	return min(dx,dz)
 
+# 71.3: Determine the *actual asphalt footprint*, not the overly broad
+# vegetation-placement distance. Main roads are 13 or 27 m wide; local
+# urban roads are 9 m.  This matches make_roads() in world_streamer.gd.
+static func pavement_clearance(p:Vector2) -> float:
+	var center_x:float=roundf(p.x/CHUNK_SIZE)*CHUNK_SIZE
+	var center_z:float=roundf(p.y/CHUNK_SIZE)*CHUNK_SIZE
+	var wide:bool=absf(center_x)<100.0 or absf(center_z)<100.0
+	var half_width:float=13.5 if wide else 6.5
+	var clearance:float=minf(grid_distance(p.x,CHUNK_SIZE),grid_distance(p.y,CHUNK_SIZE))-half_width
+	if city_type(p)!="rural":
+		var local_x:float=absf(grid_distance(p.x,CHUNK_SIZE)-100.0)-4.5
+		var local_z:float=absf(grid_distance(p.y,CHUNK_SIZE)-100.0)-4.5
+		clearance=minf(clearance,minf(local_x,local_z))
+	return clearance
+
+# Gameplay-specific driving assist, not a claim about legally posted limits.
+# The player can disable this and use each car's physical top speed.
+static func suggested_cruise_speed(p:Vector2) -> float:
+	if city_type(p)!="rural":return 50.0/3.6
+	if absf(p.x)<30.0 or absf(p.y)<30.0:return 130.0/3.6
+	return 90.0/3.6
+
 static func height_at(x:float,z:float) -> float:
 	var p:=Vector2(x,z)
 	var h:float = sin(x * 0.00082) * 9.0 + cos(z * 0.0011) * 7.0
