@@ -511,7 +511,7 @@ func make_details(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerat
 			for slot in [-143.0,-63.0,63.0,143.0]:
 				street_lots.append(Vector2(side*65.0,slot))
 	# Retry rejected lots; this preserves density without placing buildings on roads.
-	placed:int=0
+	var placed:int=0
 	for i in range(building_count*5):
 		if placed>=building_count:break
 		var x:float=rng.randf_range(-187.0,187.0)
