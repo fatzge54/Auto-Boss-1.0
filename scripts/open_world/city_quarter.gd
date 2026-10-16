@@ -1,10 +1,11 @@
 extends Node3D
-## AUTO BOSS 71.9: compact street-facing German city blocks, shopfronts and entries.
+## AUTO BOSS 71.10: street-edge sidewalks, connected entries and compact parking bays.
 ## All repeatable facade parts are MultiMesh batches; no per-window nodes.
 ## The blocks belong to their parent streamed sector and unload with it.
 const Data = preload("res://scripts/open_world/world_data.gd")
 
 var parts:Dictionary={}
+var ground_quads:Dictionary={}
 var materials:Dictionary={}
 var cube:BoxMesh
 var gable:ArrayMesh
@@ -52,7 +53,10 @@ func _setup()->void:
 		"shutters":material(Color(0.29,0.34,0.31)),
 		"doors":material(Color(0.28,0.24,0.22)),
 		"awning":material(Color(0.37,0.47,0.43)),
-		"paving":material(Color(0.46,0.47,0.44)),
+		"paving":material(Color(0.53,0.54,0.53)),
+		"sidewalk":material(Color(0.54,0.55,0.54)),
+		"parking":material(Color(0.39,0.40,0.40)),
+		"parking_line":material(Color(0.84,0.84,0.78)),
 		"hedge":material(Color(0.23,0.40,0.23)),
 		"tree":material(Color(0.24,0.44,0.26)),
 		"tree_bark":material(Color(0.33,0.25,0.18)),
@@ -115,6 +119,106 @@ func _part(bucket:String,position:Vector3,size:Vector3,yaw:float=0.0)->void:
 func _local(bucket:String,origin:Vector3,local_pos:Vector3,size:Vector3,yaw:float)->void:
 	var rotation:=Basis(Vector3.UP,yaw)
 	_part(bucket,origin+rotation*local_pos,size,yaw)
+
+# Terrain-conforming surfaces are accumulated by material. This keeps sidewalks
+# flat against sloping roads without creating a node for every 8-m section.
+func _ground_rect(bucket:String,world_center:Vector2,center:Vector2,width:float,depth:float,yaw:float,lift:float,clearance:float=0.0)->bool:
+	var basis:=Basis(Vector3.UP,yaw)
+	var right:=Vector2(basis.x.x,basis.x.z)*width*0.5
+	var back:=Vector2(basis.z.x,basis.z.z)*depth*0.5
+	var corners:Array[Vector2]=[center-right-back,center+right-back,center+right+back,center-right+back]
+	if clearance>0.0:
+		if Data.pavement_clearance(world_center+center)<clearance:return false
+		for corner in corners:
+			if Data.pavement_clearance(world_center+corner)<clearance:return false
+	if not ground_quads.has(bucket):ground_quads[bucket]=[]
+	var verts:Array[Vector3]=[]
+	for corner in corners:
+		var wc:Vector2=world_center+corner
+		verts.append(Vector3(corner.x,Data.height_at(wc.x,wc.y)+lift,corner.y))
+	ground_quads[bucket].append(verts)
+	return true
+
+func _emit_ground()->void:
+	for bucket in ground_quads.keys():
+		var st:=SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for verts in ground_quads[bucket]:
+			# Consistent upward-facing triangle winding for all yaw angles.
+			for idx in [0,2,1,0,3,2]:
+				st.add_vertex(verts[idx])
+		st.generate_normals()
+		var result:Mesh=st.commit()
+		if result==null:continue
+		var node:=MeshInstance3D.new()
+		node.name="Ground_"+str(bucket)
+		node.mesh=result
+		node.material_override=materials[bucket]
+		node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(node)
+
+func _sidewalk_network(world_center:Vector2)->void:
+	# Six municipal streets (x/z = -100, 0, +100), both sides. Every strip
+	# is tested at its corners so it ends BEFORE intersections and asphalt.
+	# Geometry is clipped to this sector; neighbouring sectors are identical.
+	for vertical in [true,false]:
+		for road in [-100.0,0.0,100.0]:
+			var half_width:float=4.5
+			if is_zero_approx(road):
+				var chunk_across:float=world_center.x if vertical else world_center.y
+				half_width=13.5 if absf(chunk_across)<100.0 else 6.5
+			for side in [-1.0,1.0]:
+				for i in range(50):
+					var along:float=-196.0+float(i)*8.0
+					var across:float=road+side*(half_width+2.85)
+					var center:Vector2=Vector2(across,along) if vertical else Vector2(along,across)
+					var yaw:float=0.0 if vertical else PI*0.5
+					# width 2.4m, seam-free 8m pieces with terrain sampled
+					# individually. No full-width quads on top of intersections.
+					_ground_rect("sidewalk",world_center,center,2.40,8.0,yaw,0.170,1.52)
+
+func _clear_of_buildings(world_center:Vector2,center:Vector2,size:Vector2,yaw:float,occupied:Array[Rect2],own:Rect2)->bool:
+	var rotated:bool=is_equal_approx(absf(yaw),PI*0.5)
+	var dimensions:Vector2=Vector2(size.y,size.x) if rotated else size
+	var footprint:=Rect2(world_center+center-dimensions*0.5,dimensions)
+	for other in occupied:
+		if other==own:continue
+		if other.grow(0.6).intersects(footprint):return false
+	return true
+
+func _entry_connections(world_center:Vector2,buildings:Array[Dictionary],occupied:Array[Rect2])->void:
+	# Build AFTER all footprints are known. Walkways never pass through
+	# another building or extend over actual roadway asphalt.
+	for item in buildings:
+		var p:Vector2=item["position"]
+		var d:float=item["depth"]
+		var w:float=item["width"]
+		var yaw:float=item["yaw"]
+		var own:Rect2=item["rect"]
+		var is_shop:bool=item["shop"]
+		var rot:=Basis(Vector3.UP,yaw)
+		var forwards:=Vector2(-rot.z.x,-rot.z.z)
+		var right:=Vector2(rot.x.x,rot.x.z)
+		# Entry pavement extends from outside the foundation to sidewalk.
+		var start_distance:float=d*0.5+3.1
+		for step in range(18):
+			var along:float=start_distance+float(step)*3.0+1.5
+			var center:Vector2=p+forwards*along
+			if not _clear_of_buildings(world_center,center,Vector2(2.25,3.0),yaw,occupied,own):break
+			if not _ground_rect("paving",world_center,center,2.25,3.0,yaw,0.185,3.10):break
+		# Small private forecourts for buildings with enough roadside space.
+		# Parking spaces are scenery only: no drivable/traffic promise.
+		if detail_level==0:continue
+		if int(item["index"])%3!=0:continue
+		for side in [-1.0,1.0]:
+			if is_shop and side<0.0:continue
+			var bay_center:Vector2=p+right*(side*minf(w*0.31,5.1))+forwards*(d*0.5+6.0)
+			if not _clear_of_buildings(world_center,bay_center,Vector2(2.75,5.4),yaw,occupied,own):continue
+			if not _ground_rect("parking",world_center,bay_center,2.75,5.4,yaw,0.175,4.30):continue
+			# Two restrained white bay-edge lines, no striped asphalt blanket.
+			for edge in [-1.0,1.0]:
+				var marking:Vector2=bay_center+right*(edge*1.32)
+				_ground_rect("parking_line",world_center,marking,0.10,5.05,yaw,0.191,4.20)
 
 func _emit_batches()->void:
 	for bucket in parts.keys():
@@ -232,9 +336,12 @@ func _street_furniture(world_center:Vector2)->void:
 				_part("hedge",Vector3(x+sign*2.2,y+0.55,z),Vector3(1.35,1.1,3.6))
 
 func build(world_center:Vector2,quality:int)->Array[Rect2]:
+	parts.clear()
+	ground_quads.clear()
 	_setup()
 	detail_level=quality
 	var colliders:Array[Rect2]=[]
+	var buildings:Array[Dictionary]=[]
 	var rng:=RandomNumberGenerator.new()
 	var cell_x:int=roundi(world_center.x/Data.CHUNK_SIZE)
 	var cell_z:int=roundi(world_center.y/Data.CHUNK_SIZE)
@@ -244,7 +351,7 @@ func build(world_center:Vector2,quality:int)->Array[Rect2]:
 	# hundred-meter grass fields. Gaps intentionally become tiny courtyards.
 	# Sector-border lot coordinates are mirrored: no houses cross chunk edges.
 	var positions:Array[Vector2]=[]
-	var rows:Array[float]=[-171.0,-147.0,-69.0,-43.0,43.0,69.0,147.0,171.0]
+	var rows:Array[float]=[-176.0,-127.0,-74.0,-29.0,29.0,74.0,127.0,176.0]
 	for x_slot in rows:
 		for z_slot in rows:
 			positions.append(Vector2(x_slot,z_slot))
@@ -289,8 +396,10 @@ func build(world_center:Vector2,quality:int)->Array[Rect2]:
 				blocked=true
 				break
 		if blocked:continue
-		var rect:Rect2=_building(world_center,p.x,p.y,w,d,floors,style,yaw,posmod(i,5)==0,rng)
+		var shop:bool=posmod(i,5)==0
+		var rect:Rect2=_building(world_center,p.x,p.y,w,d,floors,style,yaw,shop,rng)
 		colliders.append(rect)
+		buildings.append({"position":p,"width":w,"depth":d,"yaw":yaw,"shop":shop,"index":i,"rect":rect})
 	for park_x in [-150.0,-55.0,55.0,150.0]:
 		for park_z in [-151.0,-58.0,58.0,151.0]:
 			if cell_x==0 and cell_z==0 and park_x>100.0 and park_z>100.0:continue
@@ -299,6 +408,9 @@ func build(world_center:Vector2,quality:int)->Array[Rect2]:
 			for r in colliders:
 				if r.grow(8.0).has_point(spot):empty=false
 			if empty:_courtyard(world_center,park_x,park_z,rng)
+	_sidewalk_network(world_center)
+	_entry_connections(world_center,buildings,colliders)
 	_street_furniture(world_center)
+	_emit_ground()
 	_emit_batches()
 	return colliders
