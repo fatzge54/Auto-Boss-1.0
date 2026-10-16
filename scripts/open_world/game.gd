@@ -34,6 +34,7 @@ var hud_update_acc:float=0.0
 var world_acc:float=0.0
 var camera_mode:int=0
 var quality:int=0
+var speed_assist_enabled:bool=true
 var touch:Dictionary={"gas":false,"brake":false,"left":false,"right":false}
 var recovered_fuel:float=100.0
 var recovered_damage:float=0.0
@@ -125,6 +126,7 @@ func _physics_process(delta:float)->void:
 	var grip:float=0.70 if weather=="Starkregen" else (0.85 if weather=="Regen" else 1.0)
 	vehicle.engine_mod=1.0+0.10*career.engine_upgrade
 	vehicle.brake_mod=1.0+0.13*career.brake_upgrade
+	vehicle.assisted_speed_cap=Data.suggested_cruise_speed(Vector2(vehicle.position.x,vehicle.position.z)) if speed_assist_enabled else 0.0
 	static_collision_cooldown=maxf(0.0,static_collision_cooldown-delta)
 	var previous_position:Vector3=vehicle.position
 	vehicle.drive(delta,gas_input,brake_input,right_input-left_input,grip)
@@ -193,6 +195,11 @@ func update_camera(delta:float)->void:
 	cam.global_position=cam.global_position.lerp(wanted,clampf(delta*6.5,0.0,1.0))
 	cam.fov=lerpf(cam.fov,69.0+minf(absf(vehicle.speed)*0.09,7.0),clampf(delta*2.3,0.0,1.0))
 	cam.look_at(vehicle.position+f*19.0+Vector3(0,1.35,0),Vector3.UP)
+
+func toggle_speed_assist()->void:
+	speed_assist_enabled=not speed_assist_enabled
+	save_progress()
+	hud.notify("Tempolimit-Hilfe AN" if speed_assist_enabled else "Freie Geschwindigkeit",3.0)
 
 func toggle_camera()->void:
 	camera_mode=(camera_mode+1)%2
@@ -310,7 +317,8 @@ func navigation_text()->String:
 	var deadline:int=int(career.active_job.get("deadline_minutes",0))
 	var time_left:String="  •  Express: %d min" % maxi(0,deadline-ceili(career.job_timer/60.0)) if deadline>0 and career.active_stage=="delivery" else ""
 	var surface_warning:String="  •  GELÄNDE" if vehicle.offroad else ""
-	return "%s\n%.1f km  •  ETA %d min%s\n%s%s%s" % [career.destination_name(),meters*0.001,minutes,warning,next_instruction(),time_left,surface_warning]
+	var assisted:String="  •  LIMIT-HILFE" if speed_assist_enabled else ""
+	return "%s\n%.1f km  •  ETA %d min%s\n%s%s%s" % [career.destination_name(),meters*0.001,minutes,warning,next_instruction(),time_left,surface_warning+assisted]
 
 func clock_text()->String:
 	return "%02d:%02d" % [int(clock),int((clock-float(int(clock)))*60.0)]
@@ -338,6 +346,7 @@ func save_progress()->void:
 	cfg.set_value("world","clock",clock)
 	cfg.set_value("world","weather",weather)
 	cfg.set_value("world","quality",quality)
+	cfg.set_value("world","speed_assist",speed_assist_enabled)
 	cfg.set_value("vehicle","fuel",vehicle.fuel)
 	cfg.set_value("vehicle","damage",vehicle.damage)
 	cfg.set_value("vehicle","odometer",vehicle.odometer)
@@ -352,6 +361,7 @@ func load_position()->void:
 	clock=float(cfg.get_value("world","clock",8.25))
 	weather=str(cfg.get_value("world","weather","Klar"))
 	quality=int(cfg.get_value("world","quality",0))
+	speed_assist_enabled=bool(cfg.get_value("world","speed_assist",true))
 	recovered_fuel=clampf(float(cfg.get_value("vehicle","fuel",100.0)),0.0,100.0)
 	recovered_damage=clampf(float(cfg.get_value("vehicle","damage",0.0)),0.0,100.0)
 	recovered_odometer=maxf(0.0,float(cfg.get_value("vehicle","odometer",0.0)))

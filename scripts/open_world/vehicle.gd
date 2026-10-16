@@ -21,6 +21,7 @@ var engine_mod:float=1.0
 var brake_mod:float=1.0
 var offroad:bool=false
 var surface_grip:float=1.0
+var assisted_speed_cap:float=0.0 # m/s, 0 means driver chooses top speed
 
 
 func _ready()->void:
@@ -213,35 +214,44 @@ func drive(delta:float,throttle:float,braking:float,steering:float,weather_grip:
 	var info:Dictionary=CATALOG[class_index]
 	var max_speed:float=float(info["max_speed"])*(1.0+engine_mod*0.02-0.02)
 	var accel:float=float(info["acceleration"])*engine_mod
-	var brake_force:float=float(info["brakes"])*brake_mod*weather_grip
 	var damage_penalty:float=maxf(0.58,1.0-damage*0.003)
-	# Grass is drivable, but cannot be used as a 205-km/h shortcut.
-	var road_gap:float=Data.road_distance(Vector2(position.x,position.z))
-	var city_road:bool=Data.city_type(Vector2(position.x,position.z))!="rural"
-	offroad=road_gap>(17.0 if city_road else 15.5)
-	surface_grip=0.64 if offroad else 1.0
-	var surface_limit:float=23.0 if offroad else max_speed
-	var allowed:float=minf(max_speed*damage_penalty,surface_limit)
-	if throttle>0.05 and fuel>0.0:
-		# Reduced acceleration at high speed makes the 0–100 and 100–200 phases distinct.
-		var speed_ratio:float=clampf(absf(speed)/maxf(allowed,1.0),0.0,1.0)
-		var power_curve:float=0.52*(1.0-0.74*speed_ratio)
-		var drive_accel:float=accel*power_curve*weather_grip*surface_grip
-		if absf(speed)<allowed:
-			speed=move_toward(speed,allowed,drive_accel*throttle*delta)
-	elif braking>0.05:
-		if speed>0.7:
+	# Correct footprint: 4.5 m urban side streets are not 17 m wide.
+	var edge:float=Data.pavement_clearance(Vector2(position.x,position.z))
+	offroad=edge>1.7
+	surface_grip=0.61 if offroad else (0.84 if edge>0.0 else 1.0)
+	var allowed:float=max_speed*damage_penalty
+	if offroad:allowed=minf(allowed,19.5) # ~70 km/h on grass
+	if assisted_speed_cap>0.0:allowed=minf(allowed,assisted_speed_cap)
+	var brake_force:float=float(info["brakes"])*brake_mod*weather_grip*surface_grip
+	# Braking wins if both pedals are pressed, unlike the old throttle-first path.
+	if braking>0.05:
+		if speed>0.6:
 			speed=move_toward(speed,0.0,brake_force*braking*delta)
 		else:
-			speed=move_toward(speed,-6.0,accel*0.43*delta)
+			speed=move_toward(speed,-5.5,accel*0.36*delta)
+	elif throttle>0.05 and fuel>0.0:
+		var speed_ratio:float=clampf(absf(speed)/maxf(max_speed,1.0),0.0,1.0)
+		# Less power at high speed, with air resistance, so full speed is not reached instantly.
+		var power_curve:float=0.48*(1.0-0.76*speed_ratio)
+		var air_drag:float=0.00046*speed*speed
+		var drive_accel:float=maxf(0.25,accel*power_curve*weather_grip*surface_grip-air_drag)
+		if speed<allowed:
+			speed=move_toward(speed,allowed,drive_accel*throttle*delta)
+		else:
+			speed=move_toward(speed,allowed,(2.4+absf(speed)*0.025)*delta)
 	else:
-		speed=move_toward(speed,0.0,(1.4+absf(speed)*0.018+absf(speed)*absf(speed)*0.0009)*delta)
-	if offroad and absf(speed)>surface_limit:
-		speed=move_toward(speed,0.0,(4.0+absf(speed)*0.05)*delta)
-	# Steering responds to speed, grip and vehicle length.
-	var turn_factor:float=clampf(absf(speed)/7.0,0.0,1.0)
-	var steer_rate:float=float(info["steering"])*weather_grip*surface_grip*turn_factor/(1.0+absf(speed)*0.018)
-	yaw+=steering*steer_rate*delta*(1.0 if speed>=0.0 else -1.0)
+		speed=move_toward(speed,0.0,(1.1+absf(speed)*0.024+speed*speed*0.0007)*delta)
+	if speed>allowed:
+		speed=move_toward(speed,allowed,(3.8+absf(speed)*0.055)*delta)
+	# Wheelbase / bicycle steering model. At highway speed lateral G-limits
+	# stop a tiny touch input from rotating the car unrealistically fast.
+	steer_visual=move_toward(steer_visual,clampf(steering,-1.0,1.0),delta*3.3)
+	var wheelbase:float=maxf(2.30,float(info["size"].z)*0.57)
+	var steering_angle:float=deg_to_rad(lerpf(32.0,4.5,clampf(absf(speed)/57.0,0.0,1.0)))*steer_visual
+	var bicycle_rate:float=absf(speed)/wheelbase*tan(steering_angle)
+	var lateral_limit:float=6.2*weather_grip*surface_grip/maxf(absf(speed),3.0)
+	var yaw_rate:float=clampf(bicycle_rate,-lateral_limit,lateral_limit)
+	yaw+=yaw_rate*delta*(1.0 if speed>=0.0 else -1.0)
 	rotation.y=yaw
 	var forward:=Vector3(-sin(yaw),0.0,-cos(yaw))
 	position+=forward*speed*delta
