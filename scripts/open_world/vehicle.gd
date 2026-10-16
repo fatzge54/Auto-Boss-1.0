@@ -9,6 +9,8 @@ const CATALOG:Array = [
 	{"name":"LKW", "max_speed":25.0,"acceleration":3.3,"brakes":6.3,"steering":1.15,"mass":12500.0,"usage":3.1,"size":Vector3(2.45,3.35,8.2),"paint":Color(0.20,0.55,0.63)}
 ]
 var class_index:int=1
+var personal_car:bool=false # true only for the privately owned NEON GT
+const PERSONAL_CAR_GLB="res://assets/open_world/neon_gt_52.glb"
 var speed:float=0.0  # signed meters/second
 var yaw:float=0.0
 var fuel:float=100.0
@@ -37,10 +39,13 @@ func _ready()->void:
 		add_child(engine_sound)
 		engine_sound.play()
 
-func configure(index:int)->void:
+func configure(index:int, use_personal_car:bool=false)->void:
 	class_index=clampi(index,0,CATALOG.size()-1)
+	personal_car=use_personal_car
 	if body_root!=null:
-		for child in body_root.get_children():child.queue_free()
+		for child in body_root.get_children():
+			body_root.remove_child(child)
+			child.queue_free()
 		build_model()
 	speed=0.0
 	fuel=100.0
@@ -114,6 +119,21 @@ func make_tapered_shell(parent:Node3D,width:float,length:float,hood:float,paint:
 	mi.material_override=material;parent.add_child(mi)
 
 func build_model()->void:
+	# The owner's NEON GT is an imported mesh, not a replacement for contract vehicles.
+	# The original game physics/controller remains unchanged.
+	if personal_car and ResourceLoader.exists(PERSONAL_CAR_GLB):
+		var car_scene:PackedScene=ResourceLoader.load(PERSONAL_CAR_GLB) as PackedScene
+		if car_scene!=null:
+			var model:Node3D=car_scene.instantiate() as Node3D
+			if model!=null:
+				model.name="Mein_NEON_GT_52"
+				# GLB has +X right, +Y up, front -Z: matches AUTO BOSS.
+				# Ground correction for the imported mesh and near-sedan dimensions.
+				model.scale=Vector3.ONE*0.95
+				model.position=Vector3(0.0,0.10,0.0)
+				body_root.add_child(model)
+				return
+	# If a device cannot import the GLB, the basic vehicle stays driveable.
 	var info:Dictionary=CATALOG[class_index]
 	var dims:Vector3=info["size"]
 	var paint:Color=info["paint"]

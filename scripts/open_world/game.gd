@@ -39,6 +39,9 @@ var touch:Dictionary={"gas":false,"brake":false,"left":false,"right":false}
 var recovered_fuel:float=100.0
 var recovered_damage:float=0.0
 var recovered_odometer:float=0.0
+var own_car_fuel:float=100.0
+var own_car_damage:float=0.0
+var own_car_odometer:float=0.0
 
 
 func _ready()->void:
@@ -46,7 +49,7 @@ func _ready()->void:
 	world=World.new();world.name="Dynamisches_Open_World_Streaming";add_child(world)
 	career=Career.new()
 	vehicle=Vehicle.new();vehicle.name="Spielerfahrzeug";add_child(vehicle)
-	vehicle.configure(1)
+	vehicle.configure(1,true)
 	create_headlights()
 	load_position()
 	if career.active_stage=="delivery": vehicle.configure(int(career.active_job["car"]))
@@ -281,16 +284,24 @@ func interact()->void:
 		hud.notify("Bitte innerhalb der Zielzone anhalten.")
 		return
 	if career.active_stage=="pickup":
+		# Preserve private-car condition while driving the customer's vehicle.
+		own_car_fuel=vehicle.fuel
+		own_car_damage=vehicle.damage
+		own_car_odometer=vehicle.odometer
 		career.pickup()
 		vehicle.configure(int(career.active_job["car"]))
 		vehicle.engine_mod=1.0+0.10*career.engine_upgrade
 		vehicle.brake_mod=1.0+0.13*career.brake_upgrade
 		refresh_destination()
+		save_progress()
 		hud.notify("Fahrzeug übernommen! Ziel: "+str(career.active_job["to"]),5.0)
 	elif career.active_stage=="delivery":
 		career.finish(vehicle.damage,vehicle.fuel)
-		# Customer vehicle has been handed over; switch back to a neutral service car.
-		vehicle.configure(1)
+		# Customer car returned: resume in the owner's personal NEON GT.
+		vehicle.configure(1,true)
+		vehicle.fuel=own_car_fuel
+		vehicle.damage=own_car_damage
+		vehicle.odometer=own_car_odometer
 		refresh_destination()
 		state="menu"
 		hud.show_menu("result")
@@ -310,7 +321,7 @@ func next_instruction()->String:
 	return ("Links abbiegen" if cross<0.0 else "Rechts abbiegen")+" • %.0f m" % dist
 
 func navigation_text()->String:
-	if career.active_stage=="":return "FREIE FAHRT  •  Ersten Transport direkt unten starten"+("\nAchtung: Wiese / Feld – wenig Reifenhaftung!" if vehicle.offroad else "")
+	if career.active_stage=="":return "NEON GT 52.0  •  DEIN WAGEN  •  FREIE FAHRT\nErsten Transport direkt unten starten"+("\nAchtung: Wiese / Feld – wenig Reifenhaftung!" if vehicle.offroad else "")
 	var meters:float=remaining_meters()
 	var minutes:int=ceili(meters/maxf(13.0,absf(vehicle.speed))*1.0/60.0)
 	var warning:String="  •  AM ZIEL ANHALTEN" if can_interact() else ""
@@ -339,6 +350,10 @@ func service_vehicle()->void:
 
 func save_progress()->void:
 	career.save_game()
+	if vehicle.personal_car:
+		own_car_fuel=vehicle.fuel
+		own_car_damage=vehicle.damage
+		own_car_odometer=vehicle.odometer
 	var cfg:=ConfigFile.new()
 	cfg.set_value("world","x",vehicle.position.x)
 	cfg.set_value("world","z",vehicle.position.z)
@@ -350,6 +365,9 @@ func save_progress()->void:
 	cfg.set_value("vehicle","fuel",vehicle.fuel)
 	cfg.set_value("vehicle","damage",vehicle.damage)
 	cfg.set_value("vehicle","odometer",vehicle.odometer)
+	cfg.set_value("my_neon_gt","fuel",own_car_fuel)
+	cfg.set_value("my_neon_gt","damage",own_car_damage)
+	cfg.set_value("my_neon_gt","odometer",own_car_odometer)
 	cfg.save(POSITION_FILE)
 
 func load_position()->void:
@@ -365,6 +383,10 @@ func load_position()->void:
 	recovered_fuel=clampf(float(cfg.get_value("vehicle","fuel",100.0)),0.0,100.0)
 	recovered_damage=clampf(float(cfg.get_value("vehicle","damage",0.0)),0.0,100.0)
 	recovered_odometer=maxf(0.0,float(cfg.get_value("vehicle","odometer",0.0)))
+	# Backwards compatible with 71.4 saves (which had no personal-car section).
+	own_car_fuel=clampf(float(cfg.get_value("my_neon_gt","fuel",100.0 if career.active_stage=="delivery" else recovered_fuel)),0.0,100.0)
+	own_car_damage=clampf(float(cfg.get_value("my_neon_gt","damage",0.0 if career.active_stage=="delivery" else recovered_damage)),0.0,100.0)
+	own_car_odometer=maxf(0.0,float(cfg.get_value("my_neon_gt","odometer",0.0 if career.active_stage=="delivery" else recovered_odometer)))
 
 func _unhandled_key_input(event:InputEvent)->void:
 	if not (event is InputEventKey):return
