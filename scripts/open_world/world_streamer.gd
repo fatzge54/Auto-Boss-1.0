@@ -42,12 +42,20 @@ var signal_h_red_mat:StandardMaterial3D
 var signal_h_green_mat:StandardMaterial3D
 var signal_v_red_mat:StandardMaterial3D
 var signal_v_green_mat:StandardMaterial3D
+var hay_mat:StandardMaterial3D
+var freight_blue_mat:StandardMaterial3D
+var freight_red_mat:StandardMaterial3D
+var bale_mesh:CylinderMesh
 
 func _ready() -> void:
 	box_mesh=BoxMesh.new(); box_mesh.size=Vector3.ONE
 	roof_gable=make_gable_mesh()
 	tree_mesh=SphereMesh.new(); tree_mesh.radial_segments=7; tree_mesh.rings=4
 	trunk_mesh=CylinderMesh.new(); trunk_mesh.radial_segments=5; trunk_mesh.rings=1
+	bale_mesh=CylinderMesh.new();bale_mesh.top_radius=0.85;bale_mesh.bottom_radius=0.85;bale_mesh.height=1.55;bale_mesh.radial_segments=10
+	hay_mat=make_mat(Color(0.68,0.56,0.26))
+	freight_blue_mat=make_mat(Color(0.12,0.33,0.42))
+	freight_red_mat=make_mat(Color(0.52,0.20,0.15))
 	foliage_material=make_mat(Color(0.20,0.39,0.21))
 	field_material=make_mat(Color(0.43,0.50,0.23))
 	soil_material=make_mat(Color(0.38,0.31,0.23))
@@ -175,9 +183,15 @@ func rebuild_for_quality(center:Vector3)->void:
 	force_spawn(center)
 
 func force_spawn(center:Vector3) -> void:
+	# 71.2: Create the player's sector immediately; stream the surrounding
+	# sectors one at a time in _process instead of building 9–25 sectors
+	# in the same startup frame on Android.
 	update_stream(center)
-	for i in range(12):
-		if pending.is_empty(): break
+	var player_cell:=Vector2i(roundi(center.x/Data.CHUNK_SIZE),roundi(center.z/Data.CHUNK_SIZE))
+	if pending.has(player_cell):
+		pending.erase(player_cell)
+		spawn_chunk(player_cell)
+	elif not pending.is_empty():
 		spawn_chunk(pending.pop_front())
 
 func update_stream(player:Vector3) -> void:
@@ -224,6 +238,7 @@ func spawn_chunk(key:Vector2i) -> void:
 	make_road_environment(root,p,terrain_type,rng)
 	make_details(root,p,terrain_type,rng)
 	make_street_life(root,p,terrain_type,rng)
+	make_regional_character(root,p,terrain_type,rng)
 	make_landmark(root,p)
 	make_direction_sign(root,p,terrain_type)
 
@@ -486,14 +501,19 @@ func make_details(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerat
 	var street_lots:Array[Vector2]=[]
 	if kind=="city" or kind=="village":
 		for side in [-1.0,1.0]:
-			for slot in [-161.0,-115.0,-69.0,-23.0,23.0,69.0,115.0,161.0]:
+			# Keep facade lots clear of the ±100 m local streets. Earlier
+			# many candidates were rejected by road_distance(), leaving gaps.
+			for slot in [-174.0,-144.0,-65.0,65.0,144.0,174.0]:
 				street_lots.append(Vector2(side*44.0,slot))
 				street_lots.append(Vector2(slot,side*44.0))
 	if kind=="industry":
 		for side in [-1.0,1.0]:
 			for slot in [-143.0,-63.0,63.0,143.0]:
 				street_lots.append(Vector2(side*65.0,slot))
-	for i in range(building_count):
+	# Retry rejected lots; this preserves density without placing buildings on roads.
+	placed:int=0
+	for i in range(building_count*5):
+		if placed>=building_count:break
 		var x:float=rng.randf_range(-187.0,187.0)
 		var z:float=rng.randf_range(-187.0,187.0)
 		if i<street_lots.size():
@@ -504,10 +524,24 @@ func make_details(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerat
 		var wide:float=rng.randf_range(12.0,24.0) if kind=="industry" else rng.randf_range(9.0,16.0)
 		var dep:float=rng.randf_range(13.0,27.0)
 		var h:float=rng.randf_range(9.0,40.0) if kind=="city" else (rng.randf_range(8.0,15.0) if kind=="industry" else rng.randf_range(5.0,12.0))
+		# Validate the whole footprint, not just its centre, and avoid interpenetrating houses.
+		var footprint:=Rect2(pos-Vector2(wide,dep)*0.5,Vector2(wide,dep))
+		var obstructed:bool=false
+		for corner in [Vector2(-wide*0.5,-dep*0.5),Vector2(wide*0.5,-dep*0.5),Vector2(-wide*0.5,dep*0.5),Vector2(wide*0.5,dep*0.5)]:
+			if Data.pavement_clearance(pos+corner)<2.2:
+				obstructed=true
+				break
+		if obstructed:continue
+		for occupied in building_rects:
+			if occupied.grow(2.4).intersects(footprint):
+				obstructed=true
+				break
+		if obstructed:continue
+		placed+=1
 		var y:float=Data.height_at(pos.x,pos.y)
 		var m:Transform3D=Transform3D(Basis.IDENTITY.scaled(Vector3(wide,h,dep)),Vector3(x,y+h*0.5,z))
 		var idx:int=rng.randi_range(0,building_materials.size()-1)
-		building_rects.append(Rect2(Vector2(pos.x-wide*0.5,pos.y-dep*0.5),Vector2(wide,dep)))
+		building_rects.append(footprint)
 		building_groups[idx].append(m)
 		if kind=="village" or (kind=="rural" and i%2==0) or (kind=="city" and i%3==0):
 			roof_gables.append(Transform3D(Basis.IDENTITY.scaled(Vector3(wide+1.5,6.0,dep+1.5)),Vector3(x,y+h,z)))
@@ -651,6 +685,76 @@ func make_street_life(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGen
 	add_batch(root,box_mesh,metal_dark_mat,shelter_posts)
 	add_batch(root,box_mesh,railing_material,shelter_roofs)
 	add_batch(root,box_mesh,window_material,shelter_panels)
+
+# Region-specific roadside objects using just a few MultiMesh draw calls.
+# No expensive per-object scenes or lights; intentionally sparse on low quality.
+func make_regional_character(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerator)->void:
+	var sector:Vector2i=Vector2i(roundi(center.x/Data.CHUNK_SIZE),roundi(center.y/Data.CHUNK_SIZE))
+	if detail_level==0 and posmod(sector.x+sector.y,2)!=0:return
+	if kind=="rural" or kind=="village":
+		var bales:Array[Transform3D]=[]
+		var fence_posts:Array[Transform3D]=[]
+		var fence_rails:Array[Transform3D]=[]
+		# Local field decor with valid asphalt clearance and reproducible positions.
+		for i in range(12 if detail_level==2 else 7):
+			var x:float=rng.randf_range(48.0,176.0)
+			var z:float=rng.randf_range(48.0,176.0)
+			var p:=Vector2(center.x+x,center.y+z)
+			if Data.pavement_clearance(p)<7.0:continue
+			var y:float=Data.height_at(p.x,p.y)
+			var basis:=Basis(Vector3(0,0,1),PI*0.5).scaled(Vector3(1.0,1.0,1.0))
+			bales.append(Transform3D(basis,Vector3(x,y+0.86,z)))
+		# Simple wooden pasture enclosure, away from the arterial road.
+		for i in range(8):
+			var x:float=-145.0+float(i)*17.0
+			var z:float=118.0
+			var p:=Vector2(center.x+x,center.y+z)
+			if Data.pavement_clearance(p)<5.0:continue
+			var y:float=Data.height_at(p.x,p.y)
+			fence_posts.append(Transform3D(Basis.IDENTITY.scaled(Vector3(0.23,1.4,0.23)),Vector3(x,y+0.7,z)))
+			if i<7:
+				fence_rails.append(Transform3D(Basis.IDENTITY.scaled(Vector3(17.0,0.15,0.17)),Vector3(x+8.5,y+1.05,z)))
+		add_batch(root,bale_mesh,hay_mat,bales)
+		add_batch(root,box_mesh,bark_material,fence_posts)
+		add_batch(root,box_mesh,bark_material,fence_rails)
+	elif kind=="industry":
+		var containers_red:Array[Transform3D]=[]
+		var containers_blue:Array[Transform3D]=[]
+		for i in range(4):
+			# Keep containers entirely clear of the 100 m urban road grid.
+			var x:float=-52.0 if i%2==0 else 52.0
+			var z:float=-52.0 if i<2 else 52.0
+			var p:=Vector2(center.x+x,center.y+z)
+			if Data.pavement_clearance(p)<14.0:continue
+			var collider_key:=Vector2i(roundi(center.x/Data.CHUNK_SIZE),roundi(center.y/Data.CHUNK_SIZE))
+			var solid_rects:Array=building_colliders.get(collider_key,[])
+			var footprint:=Rect2(p-Vector2(3.9,7.0),Vector2(7.8,14.0))
+			var blocked:bool=false
+			for solid in solid_rects:
+				if solid.grow(1.0).intersects(footprint):
+					blocked=true
+					break
+			if blocked:continue
+			solid_rects.append(footprint)
+			building_colliders[collider_key]=solid_rects
+			var y:float=Data.height_at(p.x,p.y)
+			var item:=Transform3D(Basis.IDENTITY.scaled(Vector3(7.8,2.8,14.0)),Vector3(x,y+1.4,z))
+			if i%2==0:containers_red.append(item)
+			else:containers_blue.append(item)
+		add_batch(root,box_mesh,freight_red_mat,containers_red)
+		add_batch(root,box_mesh,freight_blue_mat,containers_blue)
+	else:
+		var benches:Array[Transform3D]=[]
+		var bins:Array[Transform3D]=[]
+		for z in [-146.0,-54.0,54.0,146.0]:
+			var x:float=28.0
+			var p:=Vector2(center.x+x,center.y+z)
+			if Data.pavement_clearance(p)<5.0:continue
+			var y:float=Data.height_at(p.x,p.y)
+			benches.append(Transform3D(Basis.IDENTITY.scaled(Vector3(2.3,0.15,0.72)),Vector3(x,y+0.55,z)))
+			bins.append(Transform3D(Basis.IDENTITY.scaled(Vector3(0.52,0.95,0.52)),Vector3(x+2.8,y+0.48,z)))
+		add_batch(root,box_mesh,bark_material,benches)
+		add_batch(root,box_mesh,metal_dark_mat,bins)
 
 func add_batch(root:Node3D,mesh:Mesh,mat:Material,transforms:Array) -> void:
 	if transforms.is_empty():return

@@ -83,6 +83,13 @@ func create_driving_ui()->void:
 	cam_btn.pressed.connect(func():game.toggle_camera());driving_hud.add_child(cam_btn)
 	var map_btn:=button("KARTE ±");map_btn.position=Vector2(320,143);map_btn.size=Vector2(142,42)
 	map_btn.pressed.connect(func():map_view.scale_factor=0.04 if map_view.scale_factor>0.08 else 0.12);driving_hud.add_child(map_btn)
+	var assist_btn:=button("LIMIT-HILFE AN" if game.speed_assist_enabled else "LIMIT-HILFE AUS")
+	assist_btn.position=Vector2(472,143);assist_btn.size=Vector2(190,42)
+	assist_btn.pressed.connect(func():
+		game.toggle_speed_assist()
+		assist_btn.text="LIMIT-HILFE AN" if game.speed_assist_enabled else "LIMIT-HILFE AUS"
+	)
+	driving_hud.add_child(assist_btn)
 	pickup_button=button("FAHRZEUG ÜBERNEHMEN")
 	pickup_button.anchor_top=1.0;pickup_button.anchor_bottom=1.0
 	pickup_button.position=Vector2(430,-246);pickup_button.size=Vector2(355,64)
@@ -142,7 +149,7 @@ func show_menu(page:String)->void:
 	var column:=VBoxContainer.new();column.custom_minimum_size=Vector2(880,620)
 	column.add_theme_constant_override("separation",9)
 	scroll.add_child(column)
-	var title:=label("AUTO BOSS 71.0  •  GERMAN ROADS",36)
+	var title:=label("AUTO BOSS 71.4  •  GERMAN ROADS",36)
 	title.add_theme_color_override("font_color",Color(0.36,0.83,1.0))
 	column.add_child(title)
 	column.add_child(label("OPEN WORLD · LOGISTIK · TRANSPORTKARRIERE",18))
@@ -212,7 +219,8 @@ func show_menu(page:String)->void:
 			add_action(column,"← ZURÜCK",func():show_menu("start"))
 		"help":
 			column.add_child(label("HANDY: Links/rechts unten lenken · GAS/BREMSE rechts gedrückt halten.",20))
-			column.add_child(label("Neu: Abseits befestigter Straßen ist das Fahrzeug deutlich langsamer.",18))
+			column.add_child(label("Neu: Auf Grünflächen weniger Haftung, bei Tempo weniger Lenkung.",18))
+			column.add_child(label("LIMIT-HILFE: 50 / 90 / 130 km/h empfohlen; per Taste abschaltbar.",18))
 			column.add_child(label("PC: W/↑ Gas, S/↓ Bremsen/Rückwärts, A/D oder ←/→ lenken.",20))
 			column.add_child(label("F: Übernahme/Abgabe · C: Kamera · M: Karte · ESC: Menü.",20))
 			column.add_child(label("Gelbe Zielmarkierung finden, anhalten und ÜBERNEHMEN/ABGEBEN drücken.",19))
