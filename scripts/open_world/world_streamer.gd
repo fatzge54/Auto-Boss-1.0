@@ -60,7 +60,7 @@ func _ready() -> void:
 	field_material=make_mat(Color(0.43,0.50,0.23))
 	soil_material=make_mat(Color(0.38,0.31,0.23))
 	forest_material=make_mat(Color(0.12,0.27,0.16))
-	gravel_material=make_mat(Color(0.35,0.35,0.30))
+	gravel_material=make_mat(Color(0.34,0.34,0.32))
 	window_material=make_mat(Color(0.16,0.28,0.33))
 	window_material.metallic=0.30
 	window_material.roughness=0.29
@@ -86,7 +86,7 @@ func _ready() -> void:
 		mat.emission_enabled=true
 		mat.emission_energy_multiplier=1.8
 	trunk_material=make_mat(Color(0.29,0.20,0.12))
-	asphalt_material=make_mat(Color(0.55,0.57,0.59))
+	asphalt_material=make_mat(Color(0.38,0.40,0.41))
 	ground_material=make_mat(Color(0.45,0.63,0.39))
 	pavement_material=make_mat(Color(0.52,0.52,0.48))
 	paint_material=make_mat(Color(0.92,0.91,0.79))
@@ -112,7 +112,7 @@ func _ready() -> void:
 	if ResourceLoader.exists(asphalt_path):
 		asphalt_material.albedo_texture=load(asphalt_path)
 		asphalt_material.uv1_triplanar=true
-		asphalt_material.uv1_scale=Vector3(0.17,0.17,0.17)
+		asphalt_material.uv1_scale=Vector3(0.14,0.14,0.14)
 	var grass_path:String="res://assets/graphics50/grass_albedo.png"
 	if ResourceLoader.exists(grass_path):
 		ground_material.albedo_texture=load(grass_path)
@@ -138,8 +138,8 @@ func update_visual_weather(daylight:float,rain:bool,signal_seconds:float)->void:
 	lamp_material.emission_enabled=night>0.12
 	lamp_material.emission=Color(1.0,0.79,0.43)*night
 	lamp_material.emission_energy_multiplier=2.0
-	asphalt_material.roughness=0.33 if rain else 0.94
-	asphalt_material.metallic=0.14 if rain else 0.0
+	asphalt_material.roughness=0.49 if rain else 0.92
+	asphalt_material.metallic=0.035 if rain else 0.0
 	var horizontal_green:bool=fposmod(signal_seconds,36.0)<18.0
 	set_signal_color(signal_h_green_mat,Color(0.03,0.78,0.17),horizontal_green)
 	set_signal_color(signal_h_red_mat,Color(0.88,0.05,0.02),not horizontal_green)
@@ -286,70 +286,181 @@ func add_strip(st:SurfaceTool,center:Vector2,along_z:bool,offset:float,width:flo
 		st.add_vertex(a); st.add_vertex(c); st.add_vertex(b)
 		st.add_vertex(b); st.add_vertex(c); st.add_vertex(d)
 
+# ROAD SURFACE 71.6: Seam-free orthogonal intersections with shared terrain samples.
+# The old full-length X and Z asphalt strips lay directly on top of one another,
+# creating coplanar surfaces (flicker) at every intersection. Horizontal arms
+# now stop precisely at the vertical road boundary; no triangles overlap.
+func _road_quad(st:SurfaceTool,center:Vector2,x0:float,x1:float,z0:float,z1:float,lift:float) -> void:
+	if x1-x0<=0.001 or z1-z0<=0.001:
+		return
+	# Small segments follow the terrain instead of cutting through its slopes.
+	var nx:int=maxi(1,ceili((x1-x0)/8.0))
+	var nz:int=maxi(1,ceili((z1-z0)/8.0))
+	for ix in range(nx):
+		var xa:float=lerpf(x0,x1,float(ix)/float(nx))
+		var xb:float=lerpf(x0,x1,float(ix+1)/float(nx))
+		for iz in range(nz):
+			var za:float=lerpf(z0,z1,float(iz)/float(nz))
+			var zb:float=lerpf(z0,z1,float(iz+1)/float(nz))
+			var a:=Vector3(xa,Data.height_at(center.x+xa,center.y+za)+lift,za)
+			var b:=Vector3(xb,Data.height_at(center.x+xb,center.y+za)+lift,za)
+			var c:=Vector3(xa,Data.height_at(center.x+xa,center.y+zb)+lift,zb)
+			var d:=Vector3(xb,Data.height_at(center.x+xb,center.y+zb)+lift,zb)
+			st.add_vertex(a);st.add_vertex(c);st.add_vertex(b)
+			st.add_vertex(b);st.add_vertex(c);st.add_vertex(d)
+
+func _road_arms(st:SurfaceTool,center:Vector2,vertical_roads:Array[Dictionary],horizontal_roads:Array[Dictionary],extra_width:float,lift:float) -> void:
+	# Continuous north/south corridors.
+	for item in vertical_roads:
+		var o:float=float(item["offset"])
+		var half:float=float(item["width"])*0.5+extra_width
+		_road_quad(st,center,o-half,o+half,-200.0,200.0,lift)
+	# West/east corridors: clip out every vertical crossing exactly once.
+	for horizontal in horizontal_roads:
+		var hz:float=float(horizontal["offset"])
+		var hh:float=float(horizontal["width"])*0.5+extra_width
+		var cursor:float=-200.0
+		for vertical in vertical_roads:
+			var vx:float=float(vertical["offset"])
+			var vh:float=float(vertical["width"])*0.5+extra_width
+			_road_quad(st,center,cursor,vx-vh,hz-hh,hz+hh,lift)
+			cursor=vx+vh
+		_road_quad(st,center,cursor,200.0,hz-hh,hz+hh,lift)
+
+# ROAD FINISH 71.7: White paint is clipped to exact crossing boundaries and
+# dashed against global metre coordinates, not against the current streamed cell.
+# Adjacent chunks therefore continue the same markings without broken dashes.
+func _paint_stroke(st:SurfaceTool,center:Vector2,along_z:bool,across:float,start:float,stop:float,width:float)->void:
+	if stop-start<=0.04:
+		return
+	if along_z:
+		_road_quad(st,center,across-width*0.5,across+width*0.5,start,stop,0.262)
+	else:
+		_road_quad(st,center,start,stop,across-width*0.5,across+width*0.5,0.262)
+
+# Slice a paint / kerb interval against complete intersection rectangles.
+func _clip_crossings(start:float,stop:float,crossings:Array[Dictionary],margin:float)->Array[Vector2]:
+	var kept:Array[Vector2]=[Vector2(start,stop)]
+	for crossing in crossings:
+		var half:float=float(crossing["width"])*0.5+margin
+		var cut_min:float=float(crossing["offset"])-half
+		var cut_max:float=float(crossing["offset"])+half
+		var next:Array[Vector2]=[]
+		for seg in kept:
+			if seg.x<cut_min-0.02:
+				next.append(Vector2(seg.x,minf(seg.y,cut_min)))
+			if seg.y>cut_max+0.02:
+				next.append(Vector2(maxf(seg.x,cut_max),seg.y))
+		kept=next
+		if kept.is_empty():
+			break
+	return kept
+
+func _draw_road_marking(st:SurfaceTool,center:Vector2,along_z:bool,across:float,crossings:Array[Dictionary],width:float,paint_length:float=0.0,cycle_length:float=0.0)->void:
+	var world_origin:float=center.y if along_z else center.x
+	var candidates:Array[Vector2]=[]
+	if cycle_length<=0.0:
+		candidates.append(Vector2(-200.0,200.0))
+	else:
+		var first:int=floori((world_origin-200.0)/cycle_length)-1
+		var last:int=ceili((world_origin+200.0)/cycle_length)+1
+		for n in range(first,last+1):
+			var a:float=maxf(-200.0,float(n)*cycle_length-world_origin)
+			var b:float=minf(200.0,float(n)*cycle_length+paint_length-world_origin)
+			if b-a>0.04:
+				candidates.append(Vector2(a,b))
+	for candidate in candidates:
+		for clipped in _clip_crossings(candidate.x,candidate.y,crossings,2.5):
+			_paint_stroke(st,center,along_z,across,clipped.x,clipped.y,width)
+
 func make_roads(root:Node3D,center:Vector2,kind:String) -> void:
-	# Full-width shoulders first, then slightly raised asphalt; geometry never uses
-	# white/sky-colored placeholder materials. All sections connect at chunk borders.
-	var main_width:float=27.0 if abs(center.x)<100.0 or abs(center.y)<100.0 else 13.0
-	var shoulders:=SurfaceTool.new();shoulders.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var st:=SurfaceTool.new();st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# Corridor width is directional, so it remains consistent across chunk seams.
+	var vertical_width:float=27.0 if absf(center.x)<100.0 else 13.0
+	var horizontal_width:float=27.0 if absf(center.y)<100.0 else 13.0
+	var vertical_roads:Array[Dictionary]=[{"offset":0.0,"width":vertical_width}]
+	var horizontal_roads:Array[Dictionary]=[{"offset":0.0,"width":horizontal_width}]
+	if kind!="rural":
+		for offset in [-100.0,100.0]:
+			vertical_roads.append({"offset":offset,"width":9.0})
+			horizontal_roads.append({"offset":offset,"width":9.0})
+	vertical_roads.sort_custom(func(a:Dictionary,b:Dictionary)->bool:
+		return float(a["offset"])<float(b["offset"])
+	)
+	horizontal_roads.sort_custom(func(a:Dictionary,b:Dictionary)->bool:
+		return float(a["offset"])<float(b["offset"])
+	)
+	var shoulder_surface:=SurfaceTool.new()
+	shoulder_surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_road_arms(shoulder_surface,center,vertical_roads,horizontal_roads,2.35,0.125)
+	shoulder_surface.generate_normals()
+	var shoulder:=MeshInstance3D.new()
+	shoulder.mesh=shoulder_surface.commit()
+	shoulder.material_override=gravel_material
+	shoulder.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(shoulder)
+	var road_surface:=SurfaceTool.new()
+	road_surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_road_arms(road_surface,center,vertical_roads,horizontal_roads,0.0,0.22)
+	road_surface.generate_normals()
+	var asphalt:=MeshInstance3D.new()
+	asphalt.mesh=road_surface.commit()
+	asphalt.material_override=asphalt_material
+	asphalt.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(asphalt)
+	var paint_surface:=SurfaceTool.new()
+	paint_surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var curbs:Array[Transform3D]=[]
 	for along_z in [true,false]:
-		add_strip(shoulders,center,along_z,0.0,main_width+4.8,0.11)
-		add_strip(st,center,along_z,0.0,main_width,0.22)
-		if kind!="rural":
+		var road_defs:Array[Dictionary]=vertical_roads if along_z else horizontal_roads
+		var crossings:Array[Dictionary]=horizontal_roads if along_z else vertical_roads
+		for road_def in road_defs:
+			var offset:float=float(road_def["offset"])
+			var road_width:float=float(road_def["width"])
+			var half_width:float=road_width*0.5
+			# German-style solid outer lines remain 0.14m wide.
 			for side in [-1.0,1.0]:
-				add_strip(shoulders,center,along_z,side*(main_width*0.5+2.5),4.4,0.18)
-		if kind!="rural":
-			for d in [-100.0,100.0]:
-				add_strip(shoulders,center,along_z,d,12.0,0.11)
-				add_strip(st,center,along_z,d,9.0,0.22)
-	shoulders.generate_normals()
-	var shoulder_mesh:=MeshInstance3D.new()
-	shoulder_mesh.mesh=shoulders.commit();shoulder_mesh.material_override=gravel_material
-	root.add_child(shoulder_mesh)
-	st.generate_normals()
-	var road:=MeshInstance3D.new();road.mesh=st.commit()
-	road.material_override=asphalt_material;root.add_child(road)
-	# Long reflective edge lines and interrupted driving-lane markings.
-	var line_xforms:Array[Transform3D]=[]
-	var curb_xforms:Array[Transform3D]=[]
-	for along_z in [true,false]:
-		var offsets:Array[float]=[0.0]
-		if kind!="rural":offsets.append_array([-100.0,100.0])
-		for offset in offsets:
-			var road_width:float=main_width if absf(offset)<1.0 else 9.0
-			for i in range(20):
-				var t:float=-190.0+float(i)*20.0
-				var x:float=offset if along_z else t
-				var z:float=t if along_z else offset
-				var y:float=Data.height_at(center.x+x,center.y+z)+0.34
-				# Exclude near intersections to keep lane-guide geometry legible.
-				if Data.grid_distance(center.x+x,400.0)>17.0 and Data.grid_distance(center.y+z,400.0)>17.0:
-					if i%2==0:
-						var b:Basis=Basis.IDENTITY.scaled(Vector3(0.18,0.025,9.0) if along_z else Vector3(9.0,0.025,0.18))
-						line_xforms.append(Transform3D(b,Vector3(x,y,z)))
-				for side in [-1.0,1.0]:
-					var edge:float=offset+side*(road_width*0.5-0.65)
-					var ex:float=edge if along_z else t
-					var ez:float=t if along_z else edge
-					var ey:float=Data.height_at(center.x+ex,center.y+ez)+0.33
-					var edge_basis:Basis=Basis.IDENTITY.scaled(Vector3(0.13,0.018,19.0) if along_z else Vector3(19.0,0.018,0.13))
-					line_xforms.append(Transform3D(edge_basis,Vector3(ex,ey,ez)))
-					# Low roadside pavement lip / verge definition.
-					if kind!="rural" and i%2==0:
-						var curb:float=offset+side*(road_width*0.5+1.2)
-						var cx:float=curb if along_z else t
-						var cz:float=t if along_z else curb
-						var cy:float=Data.height_at(center.x+cx,center.y+cz)+0.28
-						var cb:Basis=Basis.IDENTITY.scaled(Vector3(0.6,0.25,18.0) if along_z else Vector3(18.0,0.25,0.6))
-						curb_xforms.append(Transform3D(cb,Vector3(cx,cy,cz)))
-	add_batch(root,box_mesh,paint_material,line_xforms)
-	add_batch(root,box_mesh,pavement_material,curb_xforms)
+				_draw_road_marking(paint_surface,center,along_z,offset+side*(half_width-0.72),crossings,0.14)
+			if road_width>20.0:
+				# Six traffic lanes and a visible central double line.
+				for division in [-0.30,0.30]:
+					_draw_road_marking(paint_surface,center,along_z,offset+division,crossings,0.15)
+				# Six metres of paint every twelve metres, world-aligned.
+				for lane in [-8.45,-4.35,4.35,8.45]:
+					_draw_road_marking(paint_surface,center,along_z,offset+lane,crossings,0.15,6.0,12.0)
+			else:
+				# Rural: 6/12 m; urban: 3/6 m; both stop at the real junction edge.
+				var stripe:float=3.0 if kind!="rural" else 6.0
+				_draw_road_marking(paint_surface,center,along_z,offset,crossings,0.15,stripe,stripe*2.0)
+			if kind!="rural":
+				# Side stones are cut to the junction boundary rather than intersecting it.
+				for section in range(20):
+					var a:float=-200.0+float(section)*20.0
+					var b:float=a+19.0
+					for seg in _clip_crossings(a,b,crossings,4.0):
+						var length:float=seg.y-seg.x
+						if length<0.2:
+							continue
+						var mid:float=(seg.x+seg.y)*0.5
+						for side in [-1.0,1.0]:
+							var edge:float=offset+side*(half_width+1.25)
+							var px:float=edge if along_z else mid
+							var pz:float=mid if along_z else edge
+							var py:float=Data.height_at(center.x+px,center.y+pz)+0.205
+							var scale:Vector3=Vector3(0.55,0.14,length) if along_z else Vector3(length,0.14,0.55)
+							curbs.append(Transform3D(Basis.IDENTITY.scaled(scale),Vector3(px,py,pz)))
+	paint_surface.generate_normals()
+	var paint:=MeshInstance3D.new()
+	paint.mesh=paint_surface.commit()
+	paint.material_override=paint_material
+	paint.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(paint)
+	add_batch(root,box_mesh,pavement_material,curbs)
 
 func make_road_environment(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerator)->void:
 	# German pedestrian crossings, stop-lines, sidewalks, bollards and road furniture.
 	# Everything except road signs is MultiMesh-instanced to protect mobile draw calls.
-	var crosswalk:Array[Transform3D]=[]
-	var stop_lines:Array[Transform3D]=[]
+	var crossing_paint:=SurfaceTool.new()
+	crossing_paint.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var pavement:Array[Transform3D]=[]
 	var street_posts:Array[Transform3D]=[]
 	var traffic_heads:Array[Transform3D]=[]
@@ -368,17 +479,26 @@ func make_road_environment(root:Node3D,center:Vector2,kind:String,rng:RandomNumb
 		for approach in [-1.0,1.0]:
 			for along_z in [true,false]:
 				var offset:float=approach*24.0
-				for stripe in range(7):
-					var side:float=(float(stripe)-3.0)*2.2
+				var crossing_width:float=13.0
+				if (along_z and absf(center.x)<100.0) or (not along_z and absf(center.y)<100.0):
+					crossing_width=27.0
+				var stripes:int=11 if crossing_width>20.0 else 5
+				for stripe in range(stripes):
+					var side:float=(float(stripe)-float(stripes-1)*0.5)*2.2
 					var x:float=side if along_z else offset
 					var z:float=offset if along_z else side
 					var wp:=Vector2(center.x+x,center.y+z)
-					var b:=Basis.IDENTITY.scaled(Vector3(1.2,0.025,3.1) if along_z else Vector3(3.1,0.025,1.2))
-					crosswalk.append(Transform3D(b,Vector3(x,Data.height_at(wp.x,wp.y)+0.36,z)))
+					if along_z:
+						_paint_stroke(crossing_paint,center,true,x,offset-1.55,offset+1.55,1.35)
+					else:
+						_paint_stroke(crossing_paint,center,false,z,offset-1.55,offset+1.55,1.35)
 				var x2:float=0.0 if along_z else approach*33.0
 				var z2:float=approach*33.0 if along_z else 0.0
-				var q:=Vector2(center.x+x2,center.y+z2)
-				stop_lines.append(Transform3D(Basis.IDENTITY.scaled(Vector3(20.0,0.024,0.45) if along_z else Vector3(0.45,0.024,20.0)),Vector3(x2,Data.height_at(q.x,q.y)+0.35,z2)))
+				var stop_span:float=crossing_width-2.4
+				if along_z:
+					_paint_stroke(crossing_paint,center,false,z2,-stop_span*0.5,stop_span*0.5,0.48)
+				else:
+					_paint_stroke(crossing_paint,center,true,x2,-stop_span*0.5,stop_span*0.5,0.48)
 		for road_dir in [true,false]:
 			for sign in [-1.0,1.0]:
 				for idx in range(6):
@@ -395,6 +515,7 @@ func make_road_environment(root:Node3D,center:Vector2,kind:String,rng:RandomNumb
 			for side in [-1.0,1.0]:
 				for i in range(12):
 					var along:float=-183.0+i*31.0
+					if absf(along)<23.0 or absf(absf(along)-100.0)<16.0:continue
 					var across:float=side*17.8
 					var px:float=across if along_z else along
 					var pz:float=along if along_z else across
@@ -425,8 +546,13 @@ func make_road_environment(root:Node3D,center:Vector2,kind:String,rng:RandomNumb
 					var bz:float=along if along_z else cross
 					var wp:=Vector2(center.x+bx,center.y+bz)
 					reflectors.append(Transform3D(Basis.IDENTITY.scaled(Vector3(0.20,1.05,0.25)),Vector3(bx,Data.height_at(wp.x,wp.y)+0.52,bz)))
-	add_batch(root,box_mesh,paint_material,crosswalk)
-	add_batch(root,box_mesh,paint_material,stop_lines)
+	if kind!="rural":
+		crossing_paint.generate_normals()
+		var zebra:=MeshInstance3D.new()
+		zebra.mesh=crossing_paint.commit()
+		zebra.material_override=paint_material
+		zebra.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(zebra)
 	add_batch(root,box_mesh,cobble_mat,pavement)
 	add_batch(root,box_mesh,metal_dark_mat,street_posts)
 	add_batch(root,box_mesh,metal_dark_mat,traffic_heads)
