@@ -1,5 +1,6 @@
 extends Node3D
 const Data = preload("res://scripts/open_world/world_data.gd")
+const CityQuarter = preload("res://scripts/open_world/city_quarter.gd")
 var stream_radius:int=2
 var detail_level:int=1
 var chunks:Dictionary={}
@@ -595,6 +596,15 @@ func make_landscape_patches(root:Node3D,center:Vector2,kind:String,rng:RandomNum
 	add_batch(root,box_mesh,grass_detail_mat,rows)
 
 func make_details(root:Node3D,center:Vector2,kind:String,rng:RandomNumberGenerator) -> void:
+	# 71.8: The starter district of Lindenfurt uses a streamed modular block kit.
+	# Other regions deliberately retain the 71.7 baseline until separately polished.
+	if kind=="city" and absf(center.x)<=400.0 and absf(center.y)<=400.0:
+		var quarter:=CityQuarter.new()
+		quarter.name="Lindenfurt_Modulares_Quartier"
+		root.add_child(quarter)
+		var occupied:Array[Rect2]=quarter.build(center,detail_level)
+		building_colliders[Vector2i(roundi(center.x/Data.CHUNK_SIZE),roundi(center.y/Data.CHUNK_SIZE))]=occupied
+		return
 	var building_groups:Array=[]
 	var building_rects:Array[Rect2]=[]
 	for i in range(building_materials.size()):building_groups.append([])
