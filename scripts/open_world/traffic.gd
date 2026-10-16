@@ -108,7 +108,7 @@ func update_movement(delta:float)->void:
 		if collision_cooldown<=0.0 and t.position.distance_to(player.position)<2.65:
 			if player.has_method("receive_impact"):
 				# Use relative velocity vectors: head-on impacts must not cancel out.
-				var player_velocity:=Vector3(-sin(player.yaw),0.0,-cos(player.yaw))*player.speed
+				var player_velocity:Vector3=Vector3(-sin(float(player.yaw)),0.0,-cos(float(player.yaw)))*float(player.speed)
 				var relative_speed:float=(player_velocity-motion[i]*speeds[i]).length()
 				player.receive_impact(relative_speed)
 				collision_cooldown=1.7
