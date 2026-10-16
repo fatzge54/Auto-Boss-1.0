@@ -39,7 +39,7 @@ for fname,needles in {
     'career.gd':['set_contract_conditions()','deadline_minutes','on_time_bonus','cfg.set_value("job","time"'],
     'vehicle.gd':['make_tapered_shell','func drive','func receive_impact'],
     'traffic.gd':['light_clock','cruise_speeds','var stop:bool'],
-    'hud.gd':['AUTO BOSS 71.0','WorldMap.new()'],
+    'hud.gd':['AUTO BOSS','WorldMap.new()'],
     'world_map.gd':['func _draw','proj('],
     'rain_fx.gd':['func tick','visible_instance_count'],
 }.items():
@@ -53,12 +53,45 @@ print('PASS: 10 scripts, resources, delimiters, scene references, extended world
 print('LIMITATION: The scripts have NOT been parsed/executed in the Godot runtime here.')
 
 for filename,features in {
-    "vehicle.gd":["var offroad:bool", "surface_grip", "power_curve", "var surface_limit:float"],
+    "vehicle.gd":["var offroad:bool", "surface_grip", "power_curve", "var allowed:float"],
     "game.gd":["func quick_action", "recovered_fuel", "cfg.set_value(\"vehicle\",\"damage\"", "var surface_warning:String"],
     "hud.gd":["ERSTEN TRANSPORT SOFORT STARTEN", "pickup_button.visible=game.career.active_stage", "game.quick_action()"],
     "world_streamer.gd":["street_lots", "tree_lots", "make_direction_sign(root,p,terrain_type)"],
 }.items():
     for feature in features:
         assert feature in scripts[filename], (filename, "missing 71 feature", feature)
-assert 'AUTO BOSS 71.0' in (ROOT/'project.godot').read_text(encoding='utf8')
+assert 'AUTO BOSS' in (ROOT/'project.godot').read_text(encoding='utf8')
 print('PASS: version 71 features, roadside placement, offroad handling, direct first contract and save-data fields.')
+
+# 71.2 build regression: a missing wheel batch variable previously stopped
+# GDScript compilation. Keep these two tests independent of release numbers.
+assert re.search(r"\bvar\s+car_wheels\s*:\s*Array\[Transform3D\]\s*=", scripts["world_streamer.gd"])
+assert "add_batch(root,box_mesh,wheelhouse_material,car_wheels)" in scripts["world_streamer.gd"]
+assert "spawn_chunk(player_cell)" in scripts["world_streamer.gd"]
+assert "rng.randf_range(135.0,520.0)" in scripts["traffic.gd"]
+print("PASS: 71.2 startup streaming, distant AI spawning and car_wheels build regression.")
+
+# 71.3 physics and roadside-placement regressions (static checks only).
+assert "static func pavement_clearance" in scripts["world_data.gd"]
+assert "static func suggested_cruise_speed" in scripts["world_data.gd"]
+vehicle=scripts["vehicle.gd"]
+assert "var assisted_speed_cap:float=0.0" in vehicle
+assert "var bicycle_rate:float" in vehicle and "var lateral_limit:float" in vehicle
+assert vehicle.index("if braking>0.05:") < vehicle.index("elif throttle>0.05 and fuel>0.0:")
+assert "offroad=edge>1.7" in vehicle
+assert "speed_assist_enabled" in scripts["game.gd"]
+assert "func toggle_speed_assist" in scripts["game.gd"]
+assert 'cfg.set_value("world","speed_assist",speed_assist_enabled)' in scripts["game.gd"]
+assert "LIMIT-HILFE AN" in scripts["hud.gd"]
+assert "[-174.0,-144.0,-65.0,65.0,144.0,174.0]" in scripts["world_streamer.gd"]
+print("PASS: 71.3 throttle/braking, lateral steering cap, street lots, and optional persisted driving assist.")
+
+# 71.4 ambience / traffic regressions. These are source checks, not Godot builds.
+world=scripts["world_streamer.gd"]
+traffic=scripts["traffic.gd"]
+for needle in ["func make_regional_character", "add_batch(root,bale_mesh,hay_mat,bales)", "add_batch(root,box_mesh,freight_blue_mat,containers_blue)", "if placed>=building_count:break", "occupied.grow(2.4).intersects(footprint)", "building_colliders[collider_key]=solid_rects"]:
+    assert needle in world, ("71.4 world",needle)
+for needle in ["var has_signal:bool", "var relative_speed:float=(player_velocity-motion[i]*speeds[i]).length()", "var player_ahead:float", "for attempt in range(12)"]:
+    assert needle in traffic, ("71.4 traffic",needle)
+assert "AUTO BOSS 71.4" in scripts["hud.gd"]
+print("PASS: 71.4 regional props, building separation, traffic light and collision consistency.")
