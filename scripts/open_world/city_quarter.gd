@@ -1,5 +1,5 @@
 extends Node3D
-## AUTO BOSS 71.8: a compact, deterministic modular German-style city block.
+## AUTO BOSS 71.9: compact street-facing German city blocks, shopfronts and entries.
 ## All repeatable facade parts are MultiMesh batches; no per-window nodes.
 ## The blocks belong to their parent streamed sector and unload with it.
 const Data = preload("res://scripts/open_world/world_data.gd")
@@ -37,11 +37,17 @@ func _setup()->void:
 		"facade_2":material(Color(0.69,0.51,0.42)),
 		"facade_3":material(Color(0.78,0.75,0.66)),
 		"facade_4":material(Color(0.55,0.62,0.65)),
+		"facade_5":material(Color(0.66,0.58,0.49)),
+		"facade_6":material(Color(0.76,0.73,0.68)),
+		"facade_7":material(Color(0.52,0.59,0.58)),
 		"base":material(Color(0.40,0.40,0.39)),
 		"roof":material(Color(0.28,0.24,0.25)),
 		"roof_red":material(Color(0.47,0.26,0.22)),
 		"windows":material(Color(0.18,0.29,0.35)),
 		"glass_shop":material(Color(0.21,0.37,0.40)),
+		"shop_sign":material(Color(0.17,0.27,0.33)),
+		"shop_trim":material(Color(0.78,0.68,0.44)),
+		"flower":material(Color(0.46,0.26,0.22)),
 		"frames":material(Color(0.77,0.77,0.70)),
 		"shutters":material(Color(0.29,0.34,0.31)),
 		"doors":material(Color(0.28,0.24,0.22)),
@@ -58,9 +64,12 @@ func _setup()->void:
 		"res://assets/graphics51/facade_warm.png",
 		"res://assets/graphics51/facade_brick.png",
 		"res://assets/graphics51/facade_cream.png",
+		"res://assets/graphics51/facade_warm.png",
+		"res://assets/graphics51/facade_brick.png",
+		"res://assets/graphics51/facade_cream.png",
 		"res://assets/graphics51/facade_warm.png"
 	]
-	for i in range(5):
+	for i in range(8):
 		var m:StandardMaterial3D=materials["facade_%d"%i]
 		if ResourceLoader.exists(facades[i]):
 			m.albedo_texture=load(facades[i])
@@ -180,9 +189,21 @@ func _building(world_center:Vector2,x:float,z:float,w:float,d:float,floors:int,s
 	else:
 		_local("doors",org,Vector3(0,1.45,-d*0.5-0.11),Vector3(2.12,2.70,0.18),yaw)
 		_local("frames",org,Vector3(0,2.84,-d*0.5-0.21),Vector3(2.48,0.19,0.23),yaw)
-	# Stone doorstep and subtle fascia trim repeat across all building types.
-	_local("paving",org,Vector3(0,0.11,-d*0.5-1.16),Vector3(w*0.58,0.20,2.0),yaw)
+	# A compact pedestrian apron interrupts the monotonous green roadside.
+	# Width stays inside the validated building lot; no overlap with asphalt.
+	_local("paving",org,Vector3(0,0.10,-d*0.5-1.55),Vector3(w+1.6,0.16,2.85),yaw)
+	_local("paving",org,Vector3(0,0.15,-d*0.5-1.16),Vector3(w*0.58,0.20,2.0),yaw)
 	_local("frames",org,Vector3(0,3.40,-d*0.5-0.10),Vector3(w,0.16,0.2),yaw)
+	if shop:
+		# Distinct shop signs, entrance and fascia. No expensive decals/text nodes.
+		_local("shop_sign",org,Vector3(0,3.05,-d*0.5-0.31),Vector3(w*0.68,0.46,0.15),yaw)
+		_local("shop_trim",org,Vector3(0,3.38,-d*0.5-0.34),Vector3(w*0.70,0.08,0.18),yaw)
+		_local("frames",org,Vector3(0,1.56,-d*0.5-0.31),Vector3(1.24,2.38,0.22),yaw)
+	elif detail_level>0:
+		# Low garden beds make residential entrances look inhabited.
+		for side in [-1.0,1.0]:
+			_local("flower",org,Vector3(side*w*0.32,0.33,-d*0.5-1.90),Vector3(w*0.20,0.47,0.66),yaw)
+			_local("hedge",org,Vector3(side*w*0.32,0.73,-d*0.5-1.90),Vector3(w*0.18,0.40,0.55),yaw)
 	return Rect2(at-occupancy*0.5,occupancy)
 
 func _courtyard(world_center:Vector2,x:float,z:float,rng:RandomNumberGenerator)->void:
@@ -218,43 +239,57 @@ func build(world_center:Vector2,quality:int)->Array[Rect2]:
 	var cell_x:int=roundi(world_center.x/Data.CHUNK_SIZE)
 	var cell_z:int=roundi(world_center.y/Data.CHUNK_SIZE)
 	rng.seed=int(20261016+cell_x*92321+cell_z*63719)
-	# 16-24 street-facing houses per 400 m sector: small, recognizable quarters.
+	# 71.9: compact but not uniform streets. Lots fill both sides of the
+	# two intersecting local grids; 20-30 m between house centers instead of
+	# hundred-meter grass fields. Gaps intentionally become tiny courtyards.
+	# Sector-border lot coordinates are mirrored: no houses cross chunk edges.
 	var positions:Array[Vector2]=[]
-	for side in [-1.0,1.0]:
-		for x in [-165.0,-128.0,-73.0,-34.0,34.0,73.0,128.0,165.0]:
-			positions.append(Vector2(x,side*35.0))
-		for z in [-163.0,-130.0,-73.0,73.0,130.0,163.0]:
-			positions.append(Vector2(side*35.0,z))
+	var rows:Array[float]=[-171.0,-147.0,-69.0,-43.0,43.0,69.0,147.0,171.0]
+	for x_slot in rows:
+		for z_slot in rows:
+			positions.append(Vector2(x_slot,z_slot))
 	for i in range(positions.size()):
 		var p:Vector2=positions[i]
-		# The existing Lindenfurt landmark occupies the north-east central parcel.
-		if cell_x==0 and cell_z==0 and p.x>112.0 and p.y>110.0:continue
-		# Keep distinct parks / courtyards instead of filling every free lot.
-		if posmod(i+cell_x*3+cell_z*5,6)==0:continue
-		if detail_level==0 and posmod(i+cell_x-cell_z,4)==0:continue
-		var w:float=rng.randf_range(17.0,23.5)
-		var d:float=rng.randf_range(14.0,20.0)
-		var floors:int=rng.randi_range(3,5)
-		if i%9==0:floors=6
-		var style:int=posmod(i+cell_x*2+cell_z*3,5)
-		# Facade faces the nearest main road or the nearest quarter street.
+		# A central existing landmark in Lindenfurt remains unobstructed.
+		if cell_x==0 and cell_z==0 and p.x>110.0 and p.y>110.0:continue
+		# Deterministic pockets of parks, but no huge vacant squares.
+		if posmod(i+cell_x*7+cell_z*3,3)==0:continue
+		if detail_level==0 and posmod(i+cell_x*2-cell_z,4)==0:continue
+		var w:float=rng.randf_range(12.0,17.2)
+		var d:float=rng.randf_range(12.0,17.0)
+		var floors:int=rng.randi_range(2,5)
+		if posmod(i+cell_x*2+cell_z,14)==0:floors=6
+		var style:int=posmod(i+cell_x*2+cell_z*3,8)
+		# Rotate shopfront/entrance toward the nearest actual main/local road.
+		# Local roads are at world coordinates chunk-center +/- 100 m.
+		var road_x:float=0.0 if absf(p.x)<50.0 else (100.0 if p.x>0.0 else -100.0)
+		var road_z:float=0.0 if absf(p.y)<50.0 else (100.0 if p.y>0.0 else -100.0)
+		var dist_x:float=absf(p.x-road_x)
+		var dist_z:float=absf(p.y-road_z)
 		var yaw:float=0.0
-		if absf(p.x)<36.0 and absf(p.y)>36.0:
-			yaw=PI*0.5 if p.x>0.0 else -PI*0.5
+		if dist_x<dist_z:
+			yaw=PI*0.5 if p.x>road_x else -PI*0.5
 		else:
-			yaw=0.0 if p.y>0.0 else PI
+			yaw=0.0 if p.y>road_z else PI
 		var center_p:=Vector2(world_center.x+p.x,world_center.y+p.y)
-		var footprint_half:float=maxf(w,d)*0.5+2.0
+		var footprint_half:float=maxf(w,d)*0.5+3.0
 		if Data.pavement_clearance(center_p)<footprint_half:continue
 		var occupied_size:Vector2=Vector2(w,d) if is_zero_approx(yaw) or is_equal_approx(absf(yaw),PI) else Vector2(d,w)
 		var candidate:=Rect2(center_p-occupied_size*0.5,occupied_size)
+		# Validate corners too: a lot can straddle an angled road margin.
+		var road_blocked:bool=false
+		for corner in [Vector2(-occupied_size.x*0.5,-occupied_size.y*0.5),Vector2(occupied_size.x*0.5,-occupied_size.y*0.5),Vector2(-occupied_size.x*0.5,occupied_size.y*0.5),Vector2(occupied_size.x*0.5,occupied_size.y*0.5)]:
+			if Data.pavement_clearance(center_p+corner)<2.5:
+				road_blocked=true
+				break
+		if road_blocked:continue
 		var blocked:bool=false
 		for occupied in colliders:
-			if occupied.grow(2.5).intersects(candidate):
+			if occupied.grow(2.2).intersects(candidate):
 				blocked=true
 				break
 		if blocked:continue
-		var rect:Rect2=_building(world_center,p.x,p.y,w,d,floors,style,yaw,i%4==0,rng)
+		var rect:Rect2=_building(world_center,p.x,p.y,w,d,floors,style,yaw,posmod(i,5)==0,rng)
 		colliders.append(rect)
 	for park_x in [-150.0,-55.0,55.0,150.0]:
 		for park_z in [-151.0,-58.0,58.0,151.0]:
